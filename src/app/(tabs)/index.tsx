@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/Card";
 import { ProgressRing } from "@/components/ProgressRing";
+import { WaterBottle } from "@/components/WaterBottle";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { router } from "expo-router";
@@ -34,16 +35,19 @@ export default function HomeScreen() {
 
         <View style={styles.row}>
           <Card title="Wasser" style={styles.half}>
-            <Pressable
-              onPress={() => {
-                /* addWater(250) – comes with the context */
-              }}
-              style={styles.waterButton}
-            >
-              <AppText variant="label" color={colors.onPrimary}>
-                +250 ml
-              </AppText>
-            </Pressable>
+            <View style={styles.waterRow}>
+              <Pressable
+                onPress={() => {
+                  /* +250 ml */
+                }}
+                style={styles.waterButton}
+              >
+                <AppText variant="label" color={colors.onPrimary}>
+                  +250 ml
+                </AppText>
+              </Pressable>
+              <WaterBottle value={1250} goal={2750} />
+            </View>
           </Card>
 
           <Card
@@ -88,5 +92,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     backgroundColor: colors.primary,
+  },
+  waterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
   },
 });
