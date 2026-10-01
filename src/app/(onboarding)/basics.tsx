@@ -7,6 +7,7 @@ import { TextField } from "@/components/TextField";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import UserBasics from "@/models/userbasic";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +23,7 @@ export default function Basics() {
   const isComplete = sex && age && height && weight && activity && goal;
 
   const { updateUser, updateGoals } = useApp();
+  const router = useRouter();
 
   const basics: UserBasics = {
     sex: sex as UserBasics["sex"],
@@ -34,6 +36,7 @@ export default function Basics() {
 
   function createUser() {
     updateUser(basics);
+    router.push("/goal");
   }
 
   return (

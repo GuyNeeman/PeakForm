@@ -1,47 +1,82 @@
+// src/app/(onboarding)/goal.tsx – 03 Calorie goal
+// Shows the suggested kcal, protein, carbs and water. The user can adjust the kcal.
+
 import { AppText } from "@/components/AppText";
 import { ProgressRing } from "@/components/ProgressRing";
 import { BackButton } from "@/components/ReturnButton";
-import { SegmentedControl } from "@/components/SegmentedControl";
 import { colors, radius, spacing, touch } from "@/constants/theme";
-import { router } from "expo-router";
+import { useApp } from "@/context/AppContext";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// 1850 → "1'850"
+const format = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+
 export default function Goal() {
-  const isComplete = true;
-  const [calorie, setCalorie] = useState(2200);
+  const { calculateGoals, updateGoals } = useApp();
+
+  // Suggestion from the basics (only used for the starting value)
+  const suggestion = calculateGoals();
+  const [calorie, setCalorie] = useState(suggestion?.goal ?? 2000);
+
+  // Protein, carbs and water for the CURRENT calorie value – updates with the stepper
+  const goals = calculateGoals(undefined, calorie);
+
+  function acceptGoal() {
+    if (goals) updateGoals(goals);
+    // No navigation needed: once goals are saved, onboardingDone becomes true
+    // and the root layout switches to the tabs automatically.
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
 
-      <ScrollView
-        contentContainerStyle={styles.form}
-        automaticallyAdjustKeyboardInsets
-      >
-        <AppText variant="title">Dein Tagesziel</AppText>
-      </ScrollView>
+      <AppText variant="title">Dein Tagesziel</AppText>
 
-      <View style={styles.ring}>
-        <ProgressRing value={calorie} size={225} text="kcal pro Tag" />
+      {/* Calories + stepper */}
+      <View style={styles.card}>
+        <View style={styles.ring}>
+          <ProgressRing value={calorie} size={225} text="kcal pro Tag" />
+        </View>
+        <View style={styles.stepper}>
+          <Pressable
+            onPress={() => setCalorie((c) => c - 50)}
+            style={styles.stepButton}
+          >
+            <AppText variant="heading">−</AppText>
+          </Pressable>
+          <AppText variant="caption" muted>
+            in 50-kcal-Schritten
+          </AppText>
+          <Pressable
+            onPress={() => setCalorie((c) => c + 50)}
+            style={styles.stepButton}
+          >
+            <AppText variant="heading">+</AppText>
+          </Pressable>
+        </View>
       </View>
 
-      <SegmentedControl
-        label="Calorie"
-        options={["-50", "+50"]}
-        value=""
-        onChange={(option) =>
-          setCalorie((c) => (option === "+50" ? c + 50 : c - 50))
-        }
-      />
+      {/* Estimates */}
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <AppText muted>Protein</AppText>
+          <AppText variant="label">{goals?.goalprotein ?? "–"} g</AppText>
+        </View>
+        <View style={styles.row}>
+          <AppText muted>Kohlenhydrate</AppText>
+          <AppText variant="label">{goals?.goalcarbs ?? "–"} g</AppText>
+        </View>
+      </View>
 
-      <Pressable
-        disabled={!isComplete}
-        onPress={() => router.push("/goal")}
-        style={[styles.button, !isComplete && styles.buttonDisabled]}
-      >
-        <AppText variant="label">Weiter</AppText>
+      <AppText variant="caption" muted>
+        Richtwerte basierend auf deinen Angaben.
+      </AppText>
+
+      <Pressable onPress={acceptGoal} style={styles.button}>
+        <AppText variant="label">Ziel übernehmen</AppText>
       </Pressable>
     </SafeAreaView>
   );
@@ -53,22 +88,36 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.lg,
   },
-  form: {
-    gap: spacing.lg,
+  card: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  stepButton: {
+    width: touch.minSize,
+    height: touch.minSize,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
   },
   row: {
     flexDirection: "row",
-    gap: spacing.md,
+    justifyContent: "space-between",
   },
   button: {
+    marginTop: "auto", // pushes the button to the bottom
     height: touch.buttonHeight,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.4,
   },
   ring: {
     alignItems: "center",

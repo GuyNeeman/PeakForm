@@ -2,7 +2,7 @@
 // Global state: the user's basic info and daily goals.
 // Everything is saved to AsyncStorage automatically and loaded on app start.
 
-import DailyGoals from "@/models/dailygoals";
+import DailyGoals from "@/models/dailygoal";
 import UserBasics from "@/models/userbasic";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -21,6 +21,10 @@ interface AppContextType {
   updateUser: (fields: Partial<UserBasics>) => void; // change one or more fields
   updateGoals: (fields: Partial<DailyGoals>) => void; // change one or more fields
   resetAll: () => Promise<void>; // delete everything (log out / testing)
+  calculateGoals: (
+    basics?: UserBasics,
+    kcal?: number,
+  ) => DailyGoals | undefined; // suggested goals
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -83,6 +87,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyGoals((prev) => ({ ...prev, ...fields }) as DailyGoals);
   }
 
+  // ---------- CALCULATE daily goals from the basic info ----------
+  // Returns the suggestion only – save it with updateGoals(...) when the user confirms.
+  // Without basics it uses the saved userBasics.
+  // Pass kcal to get protein/carbs for a calorie value the user picked (e.g. with the stepper).
+  function calculateGoals(
+    basics: UserBasics | undefined = userBasics,
+    kcalOverride?: number,
+  ): DailyGoals | undefined {
+    if (!basics) return undefined;
+    const { sex, age, height, weight, activity, goal } = basics;
+
+    // 1) Basal metabolic rate (Mifflin-St Jeor): energy the body needs at rest
+    const sexAdjustment =
+      sex === "Männlich" ? 5 : sex === "Weiblich" ? -161 : -78; // Divers = middle
+    const bmr = 10 * weight + 6.25 * height - 5 * age + sexAdjustment;
+
+    // 2) Multiply by how active the user is
+    const activityFactor = { Wenig: 1.2, Mittel: 1.55, Viel: 1.725 }[activity];
+    const maintenance = bmr * activityFactor;
+
+    // 3) Adjust for the goal
+    const goalAdjustment = { Abnehmen: -500, Halten: 0, Aufbauen: 300 }[goal];
+    const suggestedKcal = Math.round((maintenance + goalAdjustment) / 50) * 50; // rounded to 50 (fits the ± stepper)
+    const kcal = kcalOverride ?? suggestedKcal;
+
+    // 4) Macros: protein per kg body weight, 25 % of kcal from fat, the rest carbs
+    const protein = Math.round(weight * (goal === "Halten" ? 1.6 : 2.0)); // g
+    const fatKcal = kcal * 0.25;
+    const carbs = Math.max(0, Math.round((kcal - protein * 4 - fatKcal) / 4)); // g (1 g carbs = 4 kcal)
+
+    // 5) Water: about 35 ml per kg body weight, rounded to 250 ml (one glass)
+    const water = Math.round((weight * 35) / 250) * 250; // ml
+
+    return {
+      goal: kcal,
+      goalwater: water,
+      goalprotein: protein,
+      goalcarbs: carbs,
+    };
+  }
+
   // ---------- RESET ----------
   async function resetAll(): Promise<void> {
     await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY]);
@@ -100,6 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateUser,
         updateGoals,
         resetAll,
+        calculateGoals,
       }}
     >
       {children}

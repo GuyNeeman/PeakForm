@@ -1,10 +1,8 @@
-interface UserBasics {
-  sex: "Weiblich" | "Männlich" | "Divers";
-  age: number; // years
-  height: number; // cm
-  weight: number; // kg
-  activity: "Wenig" | "Mittel" | "Viel";
-  goal: "Abnehmen" | "Halten" | "Aufbauen";
+interface DailyGoals {
+  goal: number;
+  goalwater: number;
+  goalprotein: number;
+  goalcarbs: number;
 }
 
-export default UserBasics;
+export default DailyGoals;
