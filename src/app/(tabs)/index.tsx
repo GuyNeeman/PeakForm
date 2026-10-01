@@ -16,11 +16,13 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppText variant="title">Hey Alex, bereit fürs nächste Level?</AppText>
+        <AppText variant="title">
+          Hey Sebastian, bereit fürs nächste Level?
+        </AppText>
 
         <Card
           title="Kalorien"
-          onPress={() => router.push("/meals")}
+          onPress={() => router.push("/addmeal")}
           aside={
             <ProgressRing
               value={dailyGoals?.goal ?? 0}
@@ -65,6 +67,15 @@ export default function HomeScreen() {
             Letzte Nacht
           </AppText>
         </Card>
+
+        <Pressable
+          onPress={() => router.push("/addmeal")}
+          style={styles.smallButton}
+        >
+          <AppText variant="label" color={colors.onPrimary}>
+            + Mahlzeit
+          </AppText>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -86,6 +97,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   waterButton: {
+    alignSelf: "center",
+    minHeight: touch.minSize,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+  },
+  smallButton: {
     alignSelf: "flex-start",
     minHeight: touch.minSize,
     justifyContent: "center",

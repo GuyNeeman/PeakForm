@@ -46,7 +46,7 @@ function RootStack() {
           <Stack.Screen name="(tabs)" />
 
           {/* 05 Add meal: slides up from the bottom */}
-          <Stack.Screen name="add-meal" options={{ presentation: "modal" }} />
+          <Stack.Screen name="addmeal" options={{ presentation: "modal" }} />
         </Stack.Protected>
       </Stack>
     </SafeAreaProvider>
