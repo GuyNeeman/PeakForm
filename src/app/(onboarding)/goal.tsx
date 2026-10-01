@@ -1,5 +1,5 @@
 // src/app/(onboarding)/goal.tsx – 03 Calorie goal
-// Shows the suggested kcal, protein, carbs and water. The user can adjust the kcal.
+// Shows the suggested kcal, protein, carbs and water. The user can adjust the kcal and the water.
 
 import { AppText } from "@/components/AppText";
 import { ProgressRing } from "@/components/ProgressRing";
@@ -19,12 +19,13 @@ export default function Goal() {
   // Suggestion from the basics (only used for the starting value)
   const suggestion = calculateGoals();
   const [calorie, setCalorie] = useState(suggestion?.goal ?? 2000);
+  const [water, setWater] = useState(suggestion?.goalwater ?? 2000); // ml, ~2 l is the usual default
 
-  // Protein, carbs and water for the CURRENT calorie value – updates with the stepper
+  // Protein and carbs for the CURRENT calorie value – updates with the stepper
   const goals = calculateGoals(undefined, calorie);
 
   function acceptGoal() {
-    if (goals) updateGoals(goals);
+    if (goals) updateGoals({ ...goals, goalwater: water });
     // No navigation needed: once goals are saved, onboardingDone becomes true
     // and the root layout switches to the tabs automatically.
   }
@@ -69,6 +70,24 @@ export default function Goal() {
           <AppText muted>Kohlenhydrate</AppText>
           <AppText variant="label">{goals?.goalcarbs ?? "–"} g</AppText>
         </View>
+        <View style={styles.row}>
+          <AppText muted>Wasser</AppText>
+          <View style={styles.smallStepper}>
+            <Pressable
+              onPress={() => setWater((w) => Math.max(250, w - 250))}
+              style={styles.stepButton}
+            >
+              <AppText variant="heading">−</AppText>
+            </Pressable>
+            <AppText variant="label">{format(water)} ml</AppText>
+            <Pressable
+              onPress={() => setWater((w) => w + 250)}
+              style={styles.stepButton}
+            >
+              <AppText variant="heading">+</AppText>
+            </Pressable>
+          </View>
+        </View>
       </View>
 
       <AppText variant="caption" muted>
@@ -109,7 +128,13 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
+  },
+  smallStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
   button: {
     marginTop: "auto", // pushes the button to the bottom

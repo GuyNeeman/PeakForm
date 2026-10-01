@@ -2,8 +2,6 @@
 // One place for all colors, spacing, corner radii and text styles.
 // Screens and components only use these names – never raw values like '#2F66DE' or 16.
 
-import { useMemo } from "react";
-import { useColorScheme } from "react-native";
 
 // 1) COLORS – one palette for dark mode, one for light mode (same names!)
 const dark = {
@@ -59,13 +57,13 @@ export const touch = { minSize: 44, buttonHeight: 56 };
 export type ThemeColors = typeof dark;
 export type Theme = ReturnType<typeof useTheme>;
 
-// HOOK: the current theme (dark or light)
-export function useTheme() {
-  const isDark = useColorScheme() !== "light"; // PeakForm defaults to dark
+// HOOK: the current theme.
+// PeakForm is ALWAYS dark: most styles use the static `colors` (= dark) above,
+// so following the phone's light mode would mix dark cards with dark text.
+// (app.json also has "userInterfaceStyle": "dark" for the native parts.)
+// For a real light mode later: every StyleSheet would have to use useTheme() first.
+const theme = { colors: dark, isDark: true, spacing, radius, typography, touch };
 
-  // useMemo: only create a new theme object when dark/light actually changes
-  return useMemo(
-    () => ({ colors: isDark ? dark : light, isDark, spacing, radius, typography, touch }),
-    [isDark]
-  );
+export function useTheme() {
+  return theme;
 }

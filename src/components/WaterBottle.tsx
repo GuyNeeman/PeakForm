@@ -3,6 +3,7 @@
 // <WaterBottle value={1250} goal={2750} />
 
 import { colors } from "@/constants/theme";
+import { useId } from "react";
 import Svg, { ClipPath, Defs, Path, Rect } from "react-native-svg";
 
 type Props = {
@@ -19,14 +20,24 @@ const TOP = 10; // wo die Flasche oben beginnt (unter dem Deckel)
 const BOTTOM = 98; // wo die Flasche unten endet
 
 export function WaterBottle({ value, goal, width = 40 }: Props) {
-  const progress = Math.min(value / goal, 1); // 0 bis 1, nie mehr als voll
+  const progress = goal > 0 ? Math.min(value / goal, 1) : 0; // 0 bis 1, nie mehr als voll (kein Ziel → leer statt NaN)
   const fillHeight = (BOTTOM - TOP) * progress; // wie hoch das Wasser steht
 
+  // Eindeutige ID pro Flasche (useId liefert z.B. ":r1:" – Doppelpunkte gehen in url(#…) nicht)
+  const clipId = `water-${useId().replace(/:/g, "")}`;
+
   return (
-    <Svg width={width} height={width * 2.5} viewBox="0 0 40 100">
+    // key: Android aktualisiert einen ClipPath nicht, wenn sich nur das Rechteck darin ändert.
+    // Neuer key bei neuer Füllhöhe → die SVG wird neu gezeichnet.
+    <Svg
+      key={fillHeight}
+      width={width}
+      height={width * 2.5}
+      viewBox="0 0 40 100"
+    >
       <Defs>
         {/* Ein Rechteck, das von unten wächst – nur dieser Teil der Flasche wird blau */}
-        <ClipPath id="water">
+        <ClipPath id={clipId}>
           <Rect x="0" y={BOTTOM - fillHeight} width="40" height={fillHeight} />
         </ClipPath>
       </Defs>
@@ -38,7 +49,7 @@ export function WaterBottle({ value, goal, width = 40 }: Props) {
       <Path d={BOTTLE} fill={colors.border} />
 
       {/* Wasser (blau) – dieselbe Form, aber nur bis zur Füllhöhe sichtbar */}
-      <Path d={BOTTLE} fill={colors.primary} clipPath="url(#water)" />
+      <Path d={BOTTLE} fill={colors.primary} clipPath={`url(#${clipId})`} />
     </Svg>
   );
 }

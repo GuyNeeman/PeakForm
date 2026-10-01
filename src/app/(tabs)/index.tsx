@@ -11,10 +11,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "../../components/AppText";
 
 export default function HomeScreen() {
-  const { getDay, updateDay, dayList, dailyGoals } = useApp();
+  const { getDay, updateDay, dayList, dailyGoals, resetAll } = useApp();
   const today = getDay();
 
   const eatenTooMuch = (today.kcal ?? 0) > (dailyGoals?.goal ?? 0);
+  const waterLeft = (dailyGoals?.goalwater ?? 0) - today.water; // ≤ 0 → drank enough
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,23 +47,29 @@ export default function HomeScreen() {
         </Card>
 
         <View style={styles.row}>
-          <Card title="Wasser" style={styles.half}>
-            <View style={styles.waterRow}>
-              <Pressable
-                onPress={() => {
-                  updateDay({ water: today.water + 250 });
-                }}
-                style={styles.waterButton}
-              >
-                <AppText variant="label" color={colors.onPrimary}>
-                  +250 ml
-                </AppText>
-              </Pressable>
+          <Card
+            title="Wasser"
+            style={styles.half}
+            aside={
               <WaterBottle
                 value={today.water}
                 goal={dailyGoals?.goalwater ?? 0}
               />
-            </View>
+            }
+          >
+            <AppText variant="caption" muted>
+              {waterLeft > 0 ? `${waterLeft} ml übrig` : "Genug getrunken!"}
+            </AppText>
+            <Pressable
+              onPress={() => {
+                updateDay({ water: today.water + 250 });
+              }}
+              style={styles.waterButton}
+            >
+              <AppText variant="label" color={colors.onPrimary}>
+                +250 ml
+              </AppText>
+            </Pressable>
           </Card>
 
           <Card
@@ -89,6 +96,16 @@ export default function HomeScreen() {
             + Mahlzeit
           </AppText>
         </Pressable>
+
+        {/* TESTING ONLY: deletes all user data → app jumps back to the onboarding.
+            __DEV__ = only visible in development builds, never in the real app. */}
+        {__DEV__ && (
+          <Pressable onPress={resetAll} style={styles.clearButton}>
+            <AppText variant="label" color={colors.onPrimary}>
+              Alles löschen (Test)
+            </AppText>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -110,12 +127,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   waterButton: {
-    alignSelf: "center",
+    alignSelf: "flex-start",
     minHeight: touch.minSize,
     justifyContent: "center",
     paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     backgroundColor: colors.primary,
+  },
+  clearButton: {
+    alignSelf: "flex-start",
+    minHeight: touch.minSize,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.danger,
   },
   smallButton: {
     alignSelf: "flex-start",
@@ -124,10 +149,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     backgroundColor: colors.primary,
-  },
-  waterRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
   },
 });

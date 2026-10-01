@@ -4,7 +4,7 @@
 
 import DailyGoals from "@/models/dailygoal";
 import Day from "@/models/day";
-import Meal from "@/models/meal";
+import Meal, { MealInput } from "@/models/meal";
 import UserBasics from "@/models/userbasic";
 import { toDateKey } from "@/utils/date";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,7 +29,10 @@ interface AppContextType {
     kcal?: number,
   ) => DailyGoals | undefined; // suggested goals
   mealList: Meal[];
-  addMeal: (meal: Meal) => void;
+  getMeals: (date?: string) => Meal[]; // meals of one day (default: today)
+  addMeal: (meal: MealInput, date?: string) => void; // adds it to a day (default: today) + that day's totals
+  updateMeal: (id: string, fields: Partial<MealInput>) => void; // edits it + corrects that day's totals
+  deleteMeal: (id: string) => void; // removes it + subtracts it from that day's totals
   dayList: Day[];
   getDay: (date?: string) => Day; // a day's totals (default: today); empty day if nothing saved yet
   updateDay: (fields: Partial<Omit<Day, "date">>, date?: string) => void; // creates the day first if it's new
@@ -46,6 +49,13 @@ const DAYS_KEY = "days";
 function emptyDay(date: string): Day {
   return { date, kcal: 0, water: 0, protein: 0, carbs: 0 };
 }
+
+// Short unique id, e.g. "lq3x8k2a9f1"
+function makeId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+type Totals = { kcal: number; protein: number; carbs: number };
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
@@ -68,7 +78,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
-      if (savedMeals) setMealList(JSON.parse(savedMeals) as Meal[]);
+      if (savedMeals) {
+        // Meals saved before id/date existed get one now (date: today)
+        const meals = (JSON.parse(savedMeals) as Partial<Meal>[]).map(
+          (meal) =>
+            ({ ...meal, id: meal.id ?? makeId(), date: meal.date ?? toDateKey() }) as Meal,
+        );
+        setMealList(meals);
+      }
       if (savedDays) setDayList(JSON.parse(savedDays) as Day[]);
 
       console.log("Data successfully loaded");
@@ -116,8 +133,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyGoals((prev) => ({ ...prev, ...fields }) as DailyGoals);
   }
 
-  function addMeal(meal: Meal) {
+  // ---------- MEALS ----------
+  // The day totals (kcal, protein, carbs) are kept in sync here,
+  // so screens never have to add or subtract themselves.
+
+  // getMeals()              → today's meals
+  // getMeals("2026-09-30")  → that day's meals
+  function getMeals(date: string = toDateKey()): Meal[] {
+    return mealList.filter((meal) => meal.date === date);
+  }
+
+  // addMeal({ name: "Müesli", time: "Frühstück", kcal: 450, protein: 15, carbs: 60 })
+  // addMeal({ ... }, "2026-09-30")  → adds it to that day instead (e.g. forgot to log it yesterday)
+  function addMeal(input: MealInput, date: string = toDateKey()): void {
+    const meal: Meal = { ...input, id: makeId(), date };
     setMealList((currentList) => [...currentList, meal]);
+    changeDayTotals(meal.date, meal);
+  }
+
+  // updateMeal(id, { kcal: 500 })  → only kcal changes, the day total is corrected by +50 / −50 …
+  function updateMeal(id: string, fields: Partial<MealInput>): void {
+    const oldMeal = mealList.find((meal) => meal.id === id);
+    if (!oldMeal) return;
+    const newMeal: Meal = { ...oldMeal, ...fields };
+
+    setMealList((currentList) =>
+      currentList.map((meal) => (meal.id === id ? newMeal : meal)),
+    );
+    changeDayTotals(oldMeal.date, {
+      kcal: newMeal.kcal - oldMeal.kcal,
+      protein: newMeal.protein - oldMeal.protein,
+      carbs: newMeal.carbs - oldMeal.carbs,
+    });
+  }
+
+  function deleteMeal(id: string): void {
+    const meal = mealList.find((m) => m.id === id);
+    if (!meal) return;
+
+    setMealList((currentList) => currentList.filter((m) => m.id !== id));
+    changeDayTotals(meal.date, {
+      kcal: -meal.kcal,
+      protein: -meal.protein,
+      carbs: -meal.carbs,
+    });
+  }
+
+  // Adds (or with negative numbers subtracts) to a day's totals. Never goes below 0.
+  function changeDayTotals(date: string, change: Totals): void {
+    setDayList((currentList) => {
+      const exists = currentList.some((day) => day.date === date);
+      const list = exists ? currentList : [...currentList, emptyDay(date)];
+
+      return list.map((day) =>
+        day.date === date
+          ? {
+              ...day,
+              kcal: Math.max(0, day.kcal + change.kcal),
+              protein: Math.max(0, day.protein + change.protein),
+              carbs: Math.max(0, day.carbs + change.carbs),
+            }
+          : day,
+      );
+    });
   }
 
   // ---------- DAYS ----------
@@ -204,7 +282,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resetAll,
         calculateGoals,
         mealList,
+        getMeals,
         addMeal,
+        updateMeal,
+        deleteMeal,
         dayList,
         getDay,
         updateDay,

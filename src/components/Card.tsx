@@ -14,17 +14,28 @@ type Props = {
 };
 
 export function Card({ title, onPress, style, aside, children }: Props) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed, style]}
-    >
+  const content = (
+    <>
       <View style={styles.main}>
         <AppText variant="heading">{title}</AppText>
         {children}
       </View>
       {aside}
+    </>
+  );
+
+  // Not tappable → plain View. A disabled Pressable here would block
+  // buttons inside the card on Android (e.g. "+250 ml").
+  if (!onPress) {
+    return <View style={[styles.card, style]}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed, style]}
+    >
+      {content}
     </Pressable>
   );
 }
