@@ -3,6 +3,7 @@
 // Everything is saved to AsyncStorage automatically and loaded on app start.
 
 import DailyGoals from "@/models/dailygoal";
+import Meal from "@/models/meal";
 import UserBasics from "@/models/userbasic";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -25,17 +26,21 @@ interface AppContextType {
     basics?: UserBasics,
     kcal?: number,
   ) => DailyGoals | undefined; // suggested goals
+  mealList: Meal[];
+  addMeal: (meal: Meal) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const USER_KEY = "userBasics";
 const GOALS_KEY = "dailyGoals";
+const MEALS_KEY = "meals";
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [userBasics, setUserBasics] = useState<UserBasics | undefined>();
   const [dailyGoals, setDailyGoals] = useState<DailyGoals | undefined>();
+  const [mealList, setMealList] = useState<Meal[]>([]);
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -46,9 +51,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const savedUser = await AsyncStorage.getItem(USER_KEY);
       const savedGoals = await AsyncStorage.getItem(GOALS_KEY);
+      const savedMeals = await AsyncStorage.getItem(MEALS_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
+      if (savedMeals) setMealList(JSON.parse(savedMeals) as Meal[]);
 
       console.log("Data successfully loaded");
     } catch {
@@ -66,6 +73,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoaded && dailyGoals) save(GOALS_KEY, dailyGoals);
   }, [dailyGoals, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded && mealList) save(MEALS_KEY, mealList);
+  }, [mealList, isLoaded]);
 
   async function save(key: string, data: object): Promise<void> {
     try {
@@ -85,6 +96,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // updateGoals({ goalwater: 3000 })  → only the water goal changes
   function updateGoals(fields: Partial<DailyGoals>): void {
     setDailyGoals((prev) => ({ ...prev, ...fields }) as DailyGoals);
+  }
+
+  function addMeal(meal: Meal) {
+    setMealList((currentList) => [...currentList, meal]);
   }
 
   // ---------- CALCULATE daily goals from the basic info ----------
@@ -130,9 +145,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ---------- RESET ----------
   async function resetAll(): Promise<void> {
-    await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY]);
+    await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY, MEALS_KEY]);
     setUserBasics(undefined);
     setDailyGoals(undefined);
+    setMealList([]);
   }
 
   return (
@@ -146,6 +162,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateGoals,
         resetAll,
         calculateGoals,
+        mealList,
+        addMeal,
       }}
     >
       {children}

@@ -1,19 +1,27 @@
 // src/components/TextField.tsx
-// Label + number input + unit.
+// Label + input + unit. Number keyboard by default.
 // <TextField label="Gewicht" unit="kg" value={weight} onChange={setWeight} />
+// <TextField label="Name" value={name} onChange={setName} keyboardType="default" />
 
 import { AppText } from "@/components/AppText";
 import { colors, radius, spacing, typography } from "@/constants/theme";
-import { StyleSheet, TextInput, View } from "react-native";
+import { KeyboardTypeOptions, StyleSheet, TextInput, View } from "react-native";
 
 type Props = {
   label: string;
-  unit: string;
+  unit?: string;                       // optional: e.g. "kg", leave out for text
   value: string;
   onChange: (text: string) => void;
+  keyboardType?: KeyboardTypeOptions;  // optional: "default" for normal text
 };
 
-export function TextField({ label, unit, value, onChange }: Props) {
+export function TextField({
+  label,
+  unit,
+  value,
+  onChange,
+  keyboardType = "number-pad",
+}: Props) {
   return (
     <View style={styles.field}>
       <AppText variant="label" muted>
@@ -24,9 +32,9 @@ export function TextField({ label, unit, value, onChange }: Props) {
           style={styles.text}
           value={value}
           onChangeText={onChange}
-          keyboardType="number-pad"
+          keyboardType={keyboardType}
         />
-        <AppText muted>{unit}</AppText>
+        {unit ? <AppText muted>{unit}</AppText> : null}
       </View>
     </View>
   );

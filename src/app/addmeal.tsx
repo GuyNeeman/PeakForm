@@ -1,4 +1,4 @@
-// src/app/(onboarding)/basics.tsx – 02 Basic info
+// src/app/addmeal.tsx – 05 Add meal
 
 import { AppText } from "@/components/AppText";
 import { BackButton } from "@/components/ReturnButton";
@@ -6,6 +6,7 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { TextField } from "@/components/TextField";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import Meal from "@/models/meal";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -20,11 +21,20 @@ export default function AddMeal() {
 
   const isComplete = kcal && time;
 
-  const { updateUser, updateGoals } = useApp();
+  const { addMeal } = useApp();
   const router = useRouter();
 
+  const meal: Meal = {
+    name: mahlzeit,
+    time: time as Meal["time"],
+    kcal: Number(kcal),
+    protein: Number(protein),
+    carbs: Number(carbs),
+  };
+
   function createMeal() {
-    console.log("Meal created");
+    addMeal(meal);
+    router.back();
   }
 
   return (
@@ -40,9 +50,9 @@ export default function AddMeal() {
         <View style={styles.row}>
           <TextField
             label="Was hast du gegessen?"
-            unit=""
             value={mahlzeit}
             onChange={setMahlzeit}
+            keyboardType="default"
           />
         </View>
 
