@@ -1,35 +1,38 @@
-// components/Card.tsx
-// A reusable card. Uses only theme values, so it works in dark and light mode.
+// src/components/Card.tsx
+// A reusable card. Styles live in one const at the bottom.
 
-import { Pressable, Text, ViewStyle } from 'react-native';
-import { useTheme } from '../constants/theme';
+import { Pressable, StyleProp, StyleSheet, ViewStyle } from "react-native";
+import { colors, radius, spacing } from "@/constants/theme";
+import { AppText } from "@/components/AppText";
 
 type Props = {
   title: string;
-  onPress?: () => void;      // optional: makes the card tappable
-  style?: ViewStyle;         // optional: extra styles from the screen (e.g. flex: 1)
+  onPress?: () => void;            // optional: makes the card tappable
+  style?: StyleProp<ViewStyle>;    // optional: extra styles from the screen (e.g. flex: 1)
   children?: React.ReactNode;
 };
 
-export default function Card({ title, onPress, style, children }: Props) {
-  const { colors, spacing, radius, typography } = useTheme();
-
+export function Card({ title, onPress, style, children }: Props) {
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={({ pressed }) => [
-        {
-          backgroundColor: pressed ? colors.cardPressed : colors.card,
-          borderRadius: radius.lg,
-          padding: spacing.lg,
-          gap: spacing.sm,
-        },
-        style,
-      ]}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed, style]}
     >
-      <Text style={[typography.heading, { color: colors.text }]}>{title}</Text>
+      <AppText variant="heading">{title}</AppText>
       {children}
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  cardPressed: {
+    backgroundColor: colors.cardPressed,
+  },
+});
