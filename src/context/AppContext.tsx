@@ -3,8 +3,10 @@
 // Everything is saved to AsyncStorage automatically and loaded on app start.
 
 import DailyGoals from "@/models/dailygoal";
+import Day from "@/models/day";
 import Meal from "@/models/meal";
 import UserBasics from "@/models/userbasic";
+import { toDateKey } from "@/utils/date";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     createContext,
@@ -28,6 +30,9 @@ interface AppContextType {
   ) => DailyGoals | undefined; // suggested goals
   mealList: Meal[];
   addMeal: (meal: Meal) => void;
+  dayList: Day[];
+  getDay: (date?: string) => Day; // a day's totals (default: today); empty day if nothing saved yet
+  updateDay: (fields: Partial<Omit<Day, "date">>, date?: string) => void; // creates the day first if it's new
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -35,12 +40,19 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const USER_KEY = "userBasics";
 const GOALS_KEY = "dailyGoals";
 const MEALS_KEY = "meals";
+const DAYS_KEY = "days";
+
+// A fresh day with everything at 0
+function emptyDay(date: string): Day {
+  return { date, kcal: 0, water: 0, protein: 0, carbs: 0 };
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [userBasics, setUserBasics] = useState<UserBasics | undefined>();
   const [dailyGoals, setDailyGoals] = useState<DailyGoals | undefined>();
   const [mealList, setMealList] = useState<Meal[]>([]);
+  const [dayList, setDayList] = useState<Day[]>([]);
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -52,10 +64,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedUser = await AsyncStorage.getItem(USER_KEY);
       const savedGoals = await AsyncStorage.getItem(GOALS_KEY);
       const savedMeals = await AsyncStorage.getItem(MEALS_KEY);
+      const savedDays = await AsyncStorage.getItem(DAYS_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
       if (savedMeals) setMealList(JSON.parse(savedMeals) as Meal[]);
+      if (savedDays) setDayList(JSON.parse(savedDays) as Day[]);
 
       console.log("Data successfully loaded");
     } catch {
@@ -77,6 +91,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoaded && mealList) save(MEALS_KEY, mealList);
   }, [mealList, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) save(DAYS_KEY, dayList);
+  }, [dayList, isLoaded]);
 
   async function save(key: string, data: object): Promise<void> {
     try {
@@ -100,6 +118,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function addMeal(meal: Meal) {
     setMealList((currentList) => [...currentList, meal]);
+  }
+
+  // ---------- DAYS ----------
+  // getDay()              → today
+  // getDay("2026-09-30")  → that day
+  // If the day has no entry yet (e.g. a new day just started), you get an empty day with 0s.
+  function getDay(date: string = toDateKey()): Day {
+    return dayList.find((day) => day.date === date) ?? emptyDay(date);
+  }
+
+  // updateDay({ water: 1500 })  → sets today's water, the rest stays
+  // Checks first if the day already exists – if not (new day), it is created with 0s.
+  function updateDay(
+    fields: Partial<Omit<Day, "date">>,
+    date: string = toDateKey(),
+  ): void {
+    setDayList((currentList) => {
+      const exists = currentList.some((day) => day.date === date);
+      const list = exists ? currentList : [...currentList, emptyDay(date)];
+
+      return list.map((day) => (day.date === date ? { ...day, ...fields } : day));
+    });
   }
 
   // ---------- CALCULATE daily goals from the basic info ----------
@@ -145,10 +185,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ---------- RESET ----------
   async function resetAll(): Promise<void> {
-    await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY, MEALS_KEY]);
+    await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY, MEALS_KEY, DAYS_KEY]);
     setUserBasics(undefined);
     setDailyGoals(undefined);
     setMealList([]);
+    setDayList([]);
   }
 
   return (
@@ -164,6 +205,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         calculateGoals,
         mealList,
         addMeal,
+        dayList,
+        getDay,
+        updateDay,
       }}
     >
       {children}

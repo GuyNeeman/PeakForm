@@ -11,7 +11,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "../../components/AppText";
 
 export default function HomeScreen() {
-  const { dailyGoals } = useApp();
+  const { getDay, updateDay, dayList, dailyGoals } = useApp();
+  const today = getDay();
+
+  const eatenTooMuch = (today.kcal ?? 0) > (dailyGoals?.goal ?? 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -25,14 +28,21 @@ export default function HomeScreen() {
           onPress={() => router.push("/addmeal")}
           aside={
             <ProgressRing
-              value={dailyGoals?.goal ?? 0}
+              value={today.kcal ?? 0}
               goal={dailyGoals?.goal ?? 0}
             />
           }
         >
-          <AppText variant="caption" muted>
-            {(dailyGoals?.goal ?? 0) - 120} kcal übrig
-          </AppText>
+          {!eatenTooMuch && (
+            <AppText variant="caption" muted>
+              {(dailyGoals?.goal ?? 0) - today.kcal} kcal übrig
+            </AppText>
+          )}
+          {eatenTooMuch && (
+            <AppText variant="caption" muted>
+              {today.kcal - (dailyGoals?.goal ?? 0)} kcal zu viel
+            </AppText>
+          )}
         </Card>
 
         <View style={styles.row}>
@@ -40,7 +50,7 @@ export default function HomeScreen() {
             <View style={styles.waterRow}>
               <Pressable
                 onPress={() => {
-                  /* +250 ml */
+                  updateDay({ water: today.water + 250 });
                 }}
                 style={styles.waterButton}
               >
@@ -48,7 +58,10 @@ export default function HomeScreen() {
                   +250 ml
                 </AppText>
               </Pressable>
-              <WaterBottle value={1250} goal={2750} />
+              <WaterBottle
+                value={today.water}
+                goal={dailyGoals?.goalwater ?? 0}
+              />
             </View>
           </Card>
 

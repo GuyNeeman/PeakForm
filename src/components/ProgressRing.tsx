@@ -1,5 +1,5 @@
 // src/components/ProgressRing.tsx
-// Calorie ring: blue ring that fills up, number in the middle.
+// Calorie ring: blue ring that fills up, number in the middle. Turns red when value > goal.
 // <ProgressRing value={1850} goal={2200} />
 
 import { AppText } from "@/components/AppText";
@@ -24,6 +24,8 @@ export function ProgressRing({ value, goal, size = 140, text }: Props) {
   const circumference = 2 * Math.PI * r;
   const progress = goal ? Math.min(value / goal, 1) : 0;
   const offset = circumference * (1 - progress);
+  const isOver = goal !== undefined && value > goal; // over the goal → red ring
+  const ringColor = isOver ? colors.danger : colors.primary;
 
   return (
     <View style={{ width: size, height: size }}>
@@ -42,7 +44,7 @@ export function ProgressRing({ value, goal, size = 140, text }: Props) {
             cx={size / 2}
             cy={size / 2}
             r={r}
-            stroke={colors.primary}
+            stroke={ringColor}
             strokeWidth={STROKE}
             fill="none"
             strokeLinecap="round"

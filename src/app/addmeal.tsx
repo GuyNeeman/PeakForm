@@ -21,8 +21,9 @@ export default function AddMeal() {
 
   const isComplete = kcal && time;
 
-  const { addMeal } = useApp();
+  const { addMeal, updateDay, getDay } = useApp();
   const router = useRouter();
+  const today = getDay();
 
   const meal: Meal = {
     name: mahlzeit,
@@ -34,6 +35,11 @@ export default function AddMeal() {
 
   function createMeal() {
     addMeal(meal);
+    updateDay({
+      kcal: today.kcal + meal.kcal,
+      protein: today.protein + meal.protein,
+      carbs: today.carbs + meal.carbs,
+    });
     router.back();
   }
 
