@@ -37,9 +37,8 @@ export default function Welcome() {
     return () => clearTimeout(timer);
   }, [index, width]);
 
-  // TEMPORARY until the login sheet exists (step 4)
-  const openLogin = () =>
-    Alert.alert("Kommt bald", "Das Anmelden wird im nächsten Schritt gebaut.");
+  // 12 Login sheet
+  const openLogin = () => router.push("/login");
 
   // "Los geht's": only one account per phone → if there is one, log in or start over
   function start() {

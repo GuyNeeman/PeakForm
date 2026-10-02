@@ -26,6 +26,12 @@ export default function OnboardingLayout() {
       <Stack.Screen name="basics" />
       <Stack.Screen name="goal" />
       <Stack.Screen name="register" />
+
+      {/* 12 Login: sheet over Welcome (+ "Passwort vergessen?" inside it) */}
+      <Stack.Screen
+        name="login"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }
