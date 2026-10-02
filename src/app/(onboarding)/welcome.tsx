@@ -7,15 +7,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import { Image as SlideImage, ImageContentPositionObject } from "expo-image";
 import { AppText } from "../../components/AppText";
 
 const logo = require("../images/icon.png");
 
-// Replace with your own images later
-const IMAGES = [
-  { uri: "https://picsum.photos/id/1011/800/1200" },
-  { uri: "https://picsum.photos/id/1025/800/1200" },
-  { uri: "https://picsum.photos/id/1043/800/1200" },
+// Slider photos – stored in the app (work offline). Free photos from Unsplash (Unsplash License).
+// The photos are landscape, the slider is portrait → `position` keeps the person / bowl visible.
+const IMAGES: { source: number; position: ImageContentPositionObject; label: string }[] = [
+  {
+    source: require("../../../assets/images/welcome/1-training.jpg"), // Luke Witter
+    position: { left: "40%" },
+    label: "Training im Fitnessstudio",
+  },
+  {
+    source: require("../../../assets/images/welcome/2-essen.jpg"),
+    position: { left: "50%" },
+    label: "Gesunde Bowl",
+  },
+  {
+    source: require("../../../assets/images/welcome/3-laufen.jpg"), // Robert V. Ruggiero
+    position: { left: "80%" },
+    label: "Laufen am Wasser",
+  },
 ];
 
 const INTERVAL = 4000; // milliseconds until the next image
@@ -91,8 +105,15 @@ export default function Welcome() {
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
         >
-          {IMAGES.map((source, i) => (
-            <Image key={i} source={source} style={[styles.slide, { width }]} resizeMode="cover" />
+          {IMAGES.map((image, i) => (
+            <SlideImage
+              key={i}
+              source={image.source}
+              contentFit="cover"
+              contentPosition={image.position}
+              accessibilityLabel={image.label}
+              style={[styles.slide, { width }]}
+            />
           ))}
         </ScrollView>
       </View>
