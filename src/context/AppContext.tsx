@@ -4,10 +4,13 @@
 
 import DailyGoals from "@/models/dailygoal";
 import Day from "@/models/day";
+import Habit, { ALL_WEEKDAYS, HabitInput } from "@/models/habit";
 import Meal, { MealInput } from "@/models/meal";
 import UserBasics from "@/models/userbasic";
 import { toDateKey } from "@/utils/date";
+import { syncHabitReminders } from "@/utils/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
 import {
     createContext,
     ReactNode,
@@ -36,6 +39,11 @@ interface AppContextType {
   dayList: Day[];
   getDay: (date?: string) => Day; // a day's totals (default: today); empty day if nothing saved yet
   updateDay: (fields: Partial<Omit<Day, "date">>, date?: string) => void; // creates the day first if it's new
+  habitList: Habit[];
+  addHabit: (habit: HabitInput) => void;
+  updateHabit: (id: string, fields: Partial<HabitInput>) => void;
+  deleteHabit: (id: string) => void;
+  toggleHabitDone: (id: string, date?: string) => void; // done ↔ not done (default: today)
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -44,6 +52,7 @@ const USER_KEY = "userBasics";
 const GOALS_KEY = "dailyGoals";
 const MEALS_KEY = "meals";
 const DAYS_KEY = "days";
+const HABITS_KEY = "habits";
 
 // A fresh day with everything at 0
 function emptyDay(date: string): Day {
@@ -63,6 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [dailyGoals, setDailyGoals] = useState<DailyGoals | undefined>();
   const [mealList, setMealList] = useState<Meal[]>([]);
   const [dayList, setDayList] = useState<Day[]>([]);
+  const [habitList, setHabitList] = useState<Habit[]>([]);
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -75,6 +85,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedGoals = await AsyncStorage.getItem(GOALS_KEY);
       const savedMeals = await AsyncStorage.getItem(MEALS_KEY);
       const savedDays = await AsyncStorage.getItem(DAYS_KEY);
+      const savedHabits = await AsyncStorage.getItem(HABITS_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
@@ -87,6 +98,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMealList(meals);
       }
       if (savedDays) setDayList(JSON.parse(savedDays) as Day[]);
+      if (savedHabits) {
+        // Habits saved before symbol/weekdays existed: ✓ symbol, every day
+        const habits = (JSON.parse(savedHabits) as Partial<Habit>[]).map(
+          (habit) =>
+            ({
+              ...habit,
+              icon: habit.icon ?? "checkmark-outline",
+              weekdays: habit.weekdays ?? ALL_WEEKDAYS,
+            }) as Habit,
+        );
+        setHabitList(habits);
+      }
 
       console.log("Data successfully loaded");
     } catch {
@@ -112,6 +135,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoaded) save(DAYS_KEY, dayList);
   }, [dayList, isLoaded]);
+
+  // Habits: save + plan the reminders again (also runs once after loading = on app start)
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(HABITS_KEY, habitList);
+    syncHabitReminders(habitList);
+  }, [habitList, isLoaded]);
+
+  // App comes back to the foreground (e.g. the next morning) → top up the reminders
+  useEffect(() => {
+    if (!isLoaded) return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncHabitReminders(habitList);
+    });
+    return () => subscription.remove();
+  }, [habitList, isLoaded]);
 
   async function save(key: string, data: object): Promise<void> {
     try {
@@ -220,6 +259,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  // ---------- HABITS ----------
+  // Reminders are NOT handled here: every change to habitList re-plans them (see the effect above).
+
+  // addHabit({ name: "Dehnen", icon: "swap-horizontal-outline", weekdays: ALL_WEEKDAYS,
+  //            reminder: true, time: { hour: 17, minute: 0 } })
+  function addHabit(input: HabitInput): void {
+    const habit: Habit = { ...input, id: makeId(), doneDates: [] };
+    setHabitList((currentList) => [...currentList, habit]);
+  }
+
+  // updateHabit(id, { time: { hour: 18, minute: 30 } })  → only the time changes
+  function updateHabit(id: string, fields: Partial<HabitInput>): void {
+    setHabitList((currentList) =>
+      currentList.map((habit) => (habit.id === id ? { ...habit, ...fields } : habit)),
+    );
+  }
+
+  function deleteHabit(id: string): void {
+    setHabitList((currentList) => currentList.filter((habit) => habit.id !== id));
+  }
+
+  // Ticks the habit off for a day – or un-ticks it if it was already done.
+  // Done today → today's reminder is skipped automatically.
+  function toggleHabitDone(id: string, date: string = toDateKey()): void {
+    setHabitList((currentList) =>
+      currentList.map((habit) => {
+        if (habit.id !== id) return habit;
+        const isDone = habit.doneDates.includes(date);
+        return {
+          ...habit,
+          doneDates: isDone
+            ? habit.doneDates.filter((d) => d !== date)
+            : [...habit.doneDates, date],
+        };
+      }),
+    );
+  }
+
   // ---------- CALCULATE daily goals from the basic info ----------
   // Returns the suggestion only – save it with updateGoals(...) when the user confirms.
   // Without basics it uses the saved userBasics.
@@ -263,11 +340,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ---------- RESET ----------
   async function resetAll(): Promise<void> {
-    await AsyncStorage.multiRemove([USER_KEY, GOALS_KEY, MEALS_KEY, DAYS_KEY]);
+    await AsyncStorage.multiRemove([
+      USER_KEY,
+      GOALS_KEY,
+      MEALS_KEY,
+      DAYS_KEY,
+      HABITS_KEY,
+    ]);
     setUserBasics(undefined);
     setDailyGoals(undefined);
     setMealList([]);
     setDayList([]);
+    setHabitList([]); // → the habit effect also cancels all reminders
   }
 
   return (
@@ -289,6 +373,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dayList,
         getDay,
         updateDay,
+        habitList,
+        addHabit,
+        updateHabit,
+        deleteHabit,
+        toggleHabitDone,
       }}
     >
       {children}

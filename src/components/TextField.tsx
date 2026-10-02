@@ -13,6 +13,8 @@ type Props = {
   value: string;
   onChange: (text: string) => void;
   keyboardType?: KeyboardTypeOptions;  // optional: "default" for normal text
+  placeholder?: string;                // optional: grey hint while empty
+  maxLength?: number;                  // optional: max. number of characters
 };
 
 export function TextField({
@@ -21,6 +23,8 @@ export function TextField({
   value,
   onChange,
   keyboardType = "number-pad",
+  placeholder,
+  maxLength,
 }: Props) {
   return (
     <View style={styles.field}>
@@ -33,6 +37,9 @@ export function TextField({
           value={value}
           onChangeText={onChange}
           keyboardType={keyboardType}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          maxLength={maxLength}
         />
         {unit ? <AppText muted>{unit}</AppText> : null}
       </View>

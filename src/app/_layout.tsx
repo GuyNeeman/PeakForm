@@ -5,16 +5,25 @@ import { useTheme } from "@/constants/theme";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // 1) OUTER component: only provides the context
+// GestureHandlerRootView: needed for swipe gestures (e.g. swipe a habit to the left)
 export default function RootLayout() {
   return (
-    <AppProvider>
-      <RootStack />
-    </AppProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <AppProvider>
+        <RootStack />
+      </AppProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 // 2) INNER component: lives INSIDE the provider, so useApp() works here
 function RootStack() {
@@ -47,6 +56,9 @@ function RootStack() {
 
           {/* 05 Add meal: slides up from the bottom */}
           <Stack.Screen name="addmeal" options={{ presentation: "modal" }} />
+
+          {/* Add / edit habit: slides up from the bottom */}
+          <Stack.Screen name="addhabit" options={{ presentation: "modal" }} />
         </Stack.Protected>
       </Stack>
     </SafeAreaProvider>

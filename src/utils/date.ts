@@ -22,11 +22,23 @@ export function addDays(key: string, days: number): string {
   return toDateKey(date);
 }
 
+// Weekday as 0 = Monday … 6 = Sunday (JS getDay() starts with Sunday = 0)
+export function weekdayIndex(key: string): number {
+  return (fromDateKey(key).getDay() + 6) % 7;
+}
+
+// The 7 days (Monday → Sunday) of the week that contains this day
+export function weekDates(key: string = toDateKey()): string[] {
+  const monday = addDays(key, -weekdayIndex(key));
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(monday, i));
+}
+
 // "Heute", "Gestern" or e.g. "Mo., 28. Sept."
 export function dayLabel(key: string): string {
   const today = toDateKey();
   if (key === today) return "Heute";
   if (key === addDays(today, -1)) return "Gestern";
+  if (key === addDays(today, 1)) return "Morgen";
   return fromDateKey(key).toLocaleDateString("de-CH", {
     weekday: "short",
     day: "numeric",
