@@ -1,5 +1,5 @@
 // src/app/(onboarding)/_layout.tsx
-// Stack for the onboarding: 01 Welcome → 02 Basics → 03 Goal
+// Stack for the onboarding: 01 Welcome → 02 Basics → 03 Goal → Konto erstellen
 
 import { Stack } from "expo-router";
 import { useTheme } from "@/constants/theme";
@@ -25,6 +25,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
       <Stack.Screen name="basics" />
       <Stack.Screen name="goal" />
+      <Stack.Screen name="register" />
     </Stack>
   );
 }

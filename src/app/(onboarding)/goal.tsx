@@ -6,6 +6,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { BackButton } from "@/components/ReturnButton";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const format = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
 
 export default function Goal() {
-  const { calculateGoals, updateGoals } = useApp();
+  const { calculateGoals } = useApp();
 
   // Suggestion from the basics (only used for the starting value)
   const suggestion = calculateGoals();
@@ -24,10 +25,19 @@ export default function Goal() {
   // Protein and carbs for the CURRENT calorie value – updates with the stepper
   const goals = calculateGoals(undefined, calorie);
 
+  // The goals are NOT saved here: saving them would end the onboarding at once.
+  // "Konto erstellen" saves them (with or without an account), then the app opens.
   function acceptGoal() {
-    if (goals) updateGoals({ ...goals, goalwater: water });
-    // No navigation needed: once goals are saved, onboardingDone becomes true
-    // and the root layout switches to the tabs automatically.
+    if (!goals) return;
+    router.push({
+      pathname: "/register",
+      params: {
+        goal: String(goals.goal),
+        goalwater: String(water),
+        goalprotein: String(goals.goalprotein),
+        goalcarbs: String(goals.goalcarbs),
+      },
+    });
   }
 
   return (
