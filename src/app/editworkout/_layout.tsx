@@ -1,7 +1,7 @@
 // src/app/editworkout/_layout.tsx – the "Neues Workout" modal
 // /editworkout          → 15 new workout
 // /editworkout?id=abc   → 15 edit that plan
-// /editworkout/exercises → 16 pick exercises (pushed inside the modal)  ← step 4
+// /editworkout/exercises → 16 pick exercises (pushed inside the modal)
 //
 // Holds the draft (name, days, exercises) so both screens work on the same data.
 

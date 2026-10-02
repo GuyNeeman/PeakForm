@@ -4,7 +4,7 @@
 // ① Name             → required, max. 30 characters
 // ② Wochentage       → optional; these days show the plan on Home as "heutiges Workout"
 // ③ Übungszeile      → − / + changes the number of sets, swipe left → "Entfernen"
-// ④ Übung hinzufügen → "Übung auswählen" (16) inside this modal   ← step 4
+// ④ Übung hinzufügen → "Übung auswählen" (16) inside this modal
 // ⑤ Speichern        → disabled until there's a name and at least one exercise
 // ⑥ Abbrechen        → closes without saving (asks first if something was changed)
 
@@ -187,10 +187,7 @@ export default function EditWorkout() {
 
           {/* ④ Übung hinzufügen */}
           <Pressable
-            onPress={() =>
-              // TEMPORARY until "Übung auswählen" (16) exists – step 4
-              Alert.alert("Kommt bald", "„Übung auswählen“ wird im nächsten Schritt gebaut.")
-            }
+            onPress={() => router.push("/editworkout/exercises")}
             style={({ pressed }) => [styles.addExercise, pressed && styles.pressed]}
           >
             <AppText variant="label">+ Übung hinzufügen</AppText>
