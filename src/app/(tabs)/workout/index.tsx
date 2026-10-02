@@ -6,6 +6,7 @@
 //                     swipe left → "Bearbeiten" (modal 15) / "Löschen" (asks first)
 // ③ History entry   → swipe left → "Löschen" (asks first)
 // ④ "+"             → new workout (modal 15)
+// After "Beenden & speichern" (17): /workout?saved=Pull Day → toast "Pull Day gespeichert"
 
 import { AppText } from "@/components/AppText";
 import { SegmentedControl } from "@/components/SegmentedControl";
@@ -16,19 +17,28 @@ import { useApp } from "@/context/AppContext";
 import { countSets, WorkoutPlan, WorkoutSession } from "@/models/workout";
 import { dayLabel } from "@/utils/date";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import { Alert, Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const PLANS = "Pläne";
 const HISTORY = "Verlauf";
 const RECENT_COUNT = 3; // "Zuletzt" under the plans
+const TOAST_MS = 2500;
 
 export default function WorkoutsScreen() {
   const { workoutPlans, workoutHistory, deleteSession, deletePlan, activeWorkout } =
     useApp();
   const [tab, setTab] = useState(PLANS);
+
+  // Toast after saving a training – the param is removed again after 2.5 s
+  const { saved } = useLocalSearchParams<{ saved?: string }>();
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => router.setParams({ saved: undefined }), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   function confirmDeletePlan(plan: WorkoutPlan, close: () => void) {
     Alert.alert(
@@ -162,7 +172,28 @@ export default function WorkoutsScreen() {
           ))
         )}
       </ScrollView>
+
+      {saved ? <Toast text={`${saved} gespeichert`} /> : null}
     </SafeAreaView>
+  );
+}
+
+// Small message at the bottom that fades in
+function Toast({ text }: { text: string }) {
+  const [opacity] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={[styles.toast, { opacity }]}
+      accessibilityLiveRegion="polite"
+      pointerEvents="none"
+    >
+      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+      <AppText variant="label">{text}</AppText>
+    </Animated.View>
   );
 }
 
@@ -240,6 +271,20 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  toast: {
+    position: "absolute",
+    bottom: spacing.xl,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.full,
+    backgroundColor: colors.cardPressed,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   activeBanner: {
     flexDirection: "row",

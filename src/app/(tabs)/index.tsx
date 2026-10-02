@@ -11,8 +11,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "../../components/AppText";
 
 export default function HomeScreen() {
-  const { getDay, updateDay, dayList, dailyGoals, resetAll } = useApp();
+  const { getDay, updateDay, dailyGoals, resetAll, getPlansForDay, activeWorkout } =
+    useApp();
   const today = getDay();
+
+  // Workout card: running training > today's plan (by weekday) > rest day
+  const todaysPlan = getPlansForDay()[0];
+  const workoutCard = activeWorkout
+    ? {
+        text: activeWorkout.planName,
+        caption: "Training läuft",
+        href: `/workout/${activeWorkout.planId}` as const,
+      }
+    : todaysPlan
+      ? { text: todaysPlan.name, caption: "Heute", href: `/workout/${todaysPlan.id}` as const }
+      : { text: "Ruhetag", caption: "Kein Workout geplant", href: "/workout" as const };
 
   const eatenTooMuch = (today.kcal ?? 0) > (dailyGoals?.goal ?? 0);
   const waterLeft = (dailyGoals?.goalwater ?? 0) - today.water; // ≤ 0 → drank enough
@@ -75,9 +88,12 @@ export default function HomeScreen() {
           <Card
             title="Workout"
             style={styles.half}
-            onPress={() => router.push("/workout/pull-day")}
+            onPress={() => router.push(workoutCard.href)}
           >
-            <AppText muted>Pull Day</AppText>
+            <AppText variant="label">{workoutCard.text}</AppText>
+            <AppText variant="caption" muted>
+              {workoutCard.caption}
+            </AppText>
           </Card>
         </View>
 

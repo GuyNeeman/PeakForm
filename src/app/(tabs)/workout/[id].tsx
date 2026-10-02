@@ -6,7 +6,7 @@
 //                   Vibrates when it reaches 0.
 // ③ kg / Wdh.     → tap → number keyboard. ✓ → set done, row turns grey.
 // ④ + Satz        → new set with the values of the last one
-// ⑤ Workout beenden → confirmation (17)   ← step 6
+// ⑤ Workout beenden → confirmation (17): save / keep training / discard (asks twice)
 // "…"             → edit the plan / discard the training
 
 import { AppText } from "@/components/AppText";
@@ -14,7 +14,7 @@ import { BackButton } from "@/components/ReturnButton";
 import { getExercise } from "@/constants/exercises";
 import { colors, radius, spacing, touch, typography } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
-import { SessionExercise, SetEntry, WorkoutPlan } from "@/models/workout";
+import { countSets, SessionExercise, SetEntry, WorkoutPlan } from "@/models/workout";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
@@ -162,8 +162,63 @@ function PlanOverview({ plan, onStart }: { plan: WorkoutPlan; onStart: () => voi
 
 // The running training: rest timer, one card per exercise, "Workout beenden"
 function RunningWorkout() {
-  const { activeWorkout, updateSet, addSet, startRest } = useApp();
+  const { activeWorkout, updateSet, addSet, startRest, finishWorkout, discardWorkout } =
+    useApp();
   if (!activeWorkout) return null;
+
+  // ⑤ → 17 "Workout beenden?"
+  function confirmFinish() {
+    if (!activeWorkout) return;
+    const { done, total } = countSets(activeWorkout);
+    const name = activeWorkout.planName;
+
+    const keepTraining = { text: "Weiter trainieren", style: "cancel" as const };
+    const discard = {
+      text: "Verwerfen",
+      style: "destructive" as const,
+      // Can't be undone → ask a second time
+      onPress: () =>
+        Alert.alert("Wirklich verwerfen?", "Das Training wird nicht gespeichert.", [
+          { text: "Abbrechen", style: "cancel" },
+          {
+            text: "Verwerfen",
+            style: "destructive",
+            onPress: () => {
+              discardWorkout();
+              router.navigate("/workout");
+            },
+          },
+        ]),
+    };
+
+    // Nothing ticked yet → nothing worth saving
+    if (done === 0) {
+      Alert.alert(
+        "Workout beenden?",
+        "Du hast noch keinen Satz abgehakt. Es gibt nichts zu speichern.",
+        [keepTraining, discard],
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Workout beenden?",
+      `${done} von ${total} Sätzen erledigt. Das Training wird im Verlauf gespeichert.`,
+      [
+        {
+          text: "Beenden & speichern",
+          onPress: () => {
+            finishWorkout();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Back to Workouts (06), which shows "Pull Day gespeichert"
+            router.navigate({ pathname: "/workout", params: { saved: name } });
+          },
+        },
+        keepTraining,
+        discard,
+      ],
+    );
+  }
 
   function toggleDone(exerciseIndex: number, setIndex: number, set: SetEntry) {
     const done = !set.done;
@@ -197,13 +252,7 @@ function RunningWorkout() {
 
       {/* ⑤ Workout beenden */}
       <View style={styles.footer}>
-        <Pressable
-          onPress={() =>
-            // TEMPORARY until the end screen exists – step 6
-            Alert.alert("Kommt bald", "„Workout beenden“ wird im nächsten Schritt gebaut.")
-          }
-          style={styles.primaryButton}
-        >
+        <Pressable onPress={confirmFinish} style={styles.primaryButton}>
           <AppText variant="label" color={colors.onPrimary}>
             Workout beenden
           </AppText>
