@@ -2,6 +2,7 @@
 // Global state: the user's basic info and daily goals.
 // Everything is saved to AsyncStorage automatically and loaded on app start.
 
+import { EXAMPLE_PLANS } from "@/constants/exercises";
 import DailyGoals from "@/models/dailygoal";
 import Day from "@/models/day";
 import Habit, { ALL_WEEKDAYS, HabitInput } from "@/models/habit";
@@ -146,7 +147,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         setHabitList(habits);
       }
-      if (savedPlans) setWorkoutPlans(JSON.parse(savedPlans) as WorkoutPlan[]);
+      // Never saved any plans (first start / after reset) → Push / Pull / Legs as examples
+      setWorkoutPlans(
+        savedPlans ? (JSON.parse(savedPlans) as WorkoutPlan[]) : EXAMPLE_PLANS,
+      );
       if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory) as WorkoutSession[]);
       if (savedActive) setActiveWorkout(JSON.parse(savedActive) as WorkoutSession);
 
@@ -539,7 +543,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMealList([]);
     setDayList([]);
     setHabitList([]); // → the habit effect also cancels all reminders
-    setWorkoutPlans([]);
+    setWorkoutPlans(EXAMPLE_PLANS); // fresh start → examples again
     setWorkoutHistory([]);
     setActiveWorkout(undefined);
   }

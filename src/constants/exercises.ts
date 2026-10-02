@@ -2,6 +2,7 @@
 // The ids must never change: saved plans and the history point to them.
 
 import Exercise, { MuscleGroup } from "@/models/exercise";
+import { WorkoutPlan } from "@/models/workout";
 
 export const EXERCISES: Exercise[] = [
   // Brust
@@ -46,6 +47,48 @@ export const EXERCISES: Exercise[] = [
   { id: "plank", name: "Plank", muscle: "Bauch", equipment: "Körpergewicht" },
   { id: "crunches", name: "Crunches", muscle: "Bauch", equipment: "Körpergewicht" },
   { id: "hanging-leg-raise", name: "Beinheben hängend", muscle: "Bauch", equipment: "Körpergewicht" },
+];
+
+// Example plans for new users (Push / Pull / Legs, each twice a week).
+// Only created when no plans were ever saved – deleted examples don't come back.
+export const EXAMPLE_PLANS: WorkoutPlan[] = [
+  {
+    id: "example-push",
+    name: "Push Day",
+    weekdays: [0, 3], // Mo, Do
+    exercises: [
+      { exerciseId: "bench-press", sets: 3, reps: 10 },
+      { exerciseId: "incline-bench-press", sets: 3, reps: 10 },
+      { exerciseId: "overhead-press", sets: 3, reps: 10 },
+      { exerciseId: "lateral-raise", sets: 3, reps: 12 },
+      { exerciseId: "triceps-pushdown", sets: 3, reps: 12 },
+    ],
+  },
+  {
+    id: "example-pull",
+    name: "Pull Day",
+    weekdays: [1, 4], // Di, Fr
+    exercises: [
+      { exerciseId: "pull-ups", sets: 3, reps: 8 },
+      { exerciseId: "barbell-row", sets: 3, reps: 10 },
+      { exerciseId: "lat-pulldown", sets: 3, reps: 10 },
+      { exerciseId: "face-pull", sets: 3, reps: 12 },
+      { exerciseId: "bicep-curl", sets: 3, reps: 12 },
+      { exerciseId: "hammer-curl", sets: 3, reps: 12 },
+    ],
+  },
+  {
+    id: "example-legs",
+    name: "Leg Day",
+    weekdays: [2, 5], // Mi, Sa
+    exercises: [
+      { exerciseId: "squat", sets: 3, reps: 8 },
+      { exerciseId: "romanian-deadlift", sets: 3, reps: 10 },
+      { exerciseId: "leg-press", sets: 3, reps: 10 },
+      { exerciseId: "leg-curl", sets: 3, reps: 12 },
+      { exerciseId: "calf-raise", sets: 3, reps: 15 },
+    ],
+  },
 ];
 
 // getExercise("bench-press") → Bankdrücken

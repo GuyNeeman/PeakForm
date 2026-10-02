@@ -7,7 +7,7 @@ import { colors, radius, spacing, touch } from "@/constants/theme";
 import { Pressable, StyleSheet, View } from "react-native";
 
 type Props = {
-  label: string;
+  label?: string; // optional: small grey text above
   options: string[];
   value: string;
   onChange: (option: string) => void;
@@ -16,9 +16,11 @@ type Props = {
 export function SegmentedControl({ label, options, value, onChange }: Props) {
   return (
     <View style={styles.field}>
-      <AppText variant="label" muted>
-        {label}
-      </AppText>
+      {label ? (
+        <AppText variant="label" muted>
+          {label}
+        </AppText>
+      ) : null}
       <View style={styles.bar}>
         {options.map((option) => (
           <Pressable
