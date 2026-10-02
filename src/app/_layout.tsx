@@ -59,6 +59,9 @@ function RootStack() {
 
           {/* Add / edit habit: slides up from the bottom */}
           <Stack.Screen name="addhabit" options={{ presentation: "modal" }} />
+
+          {/* 15 New / edit workout (+ 16 "Übung auswählen" inside it): slides up */}
+          <Stack.Screen name="editworkout" options={{ presentation: "modal" }} />
         </Stack.Protected>
       </Stack>
     </SafeAreaProvider>

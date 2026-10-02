@@ -3,8 +3,9 @@
 //
 // ① Pläne / Verlauf → switches the list
 // ② Plan card       → workout detail (07)               ← step 5
+//                     swipe left → "Bearbeiten" (modal 15) / "Löschen" (asks first)
 // ③ History entry   → swipe left → "Löschen" (asks first)
-// ④ "+"             → new workout (modal 15)             ← step 3
+// ④ "+"             → new workout (modal 15)
 
 import { AppText } from "@/components/AppText";
 import { SegmentedControl } from "@/components/SegmentedControl";
@@ -15,6 +16,7 @@ import { useApp } from "@/context/AppContext";
 import { countSets, WorkoutPlan, WorkoutSession } from "@/models/workout";
 import { dayLabel } from "@/utils/date";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,13 +25,24 @@ const PLANS = "Pläne";
 const HISTORY = "Verlauf";
 const RECENT_COUNT = 3; // "Zuletzt" under the plans
 
-// TEMPORARY until the screens exist (steps 3 and 5)
+// TEMPORARY until the workout detail exists (step 5)
 const comingSoon = (what: string) =>
-  Alert.alert("Kommt bald", `${what} wird im nächsten Schritt gebaut.`);
+  Alert.alert("Kommt bald", `${what} wird in einem der nächsten Schritte gebaut.`);
 
 export default function WorkoutsScreen() {
-  const { workoutPlans, workoutHistory, deleteSession } = useApp();
+  const { workoutPlans, workoutHistory, deleteSession, deletePlan } = useApp();
   const [tab, setTab] = useState(PLANS);
+
+  function confirmDeletePlan(plan: WorkoutPlan, close: () => void) {
+    Alert.alert(
+      "Plan löschen?",
+      `„${plan.name}“ wird gelöscht. Bisherige Trainings bleiben im Verlauf.`,
+      [
+        { text: "Abbrechen", style: "cancel", onPress: close },
+        { text: "Löschen", style: "destructive", onPress: () => deletePlan(plan.id) },
+      ],
+    );
+  }
 
   function confirmDelete(session: WorkoutSession, close: () => void) {
     Alert.alert(
@@ -53,7 +66,7 @@ export default function WorkoutsScreen() {
         <View style={styles.header}>
           <AppText variant="title">Workouts</AppText>
           <Pressable
-            onPress={() => comingSoon("„Neues Workout“")}
+            onPress={() => router.push("/editworkout")}
             accessibilityLabel="Neues Workout"
             style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
           >
@@ -73,11 +86,26 @@ export default function WorkoutsScreen() {
               </AppText>
             ) : (
               workoutPlans.map((plan) => (
-                <PlanCard
+                <SwipeableRow
                   key={plan.id}
-                  plan={plan}
-                  onPress={() => comingSoon("Das Workout-Detail")}
-                />
+                  actions={[
+                    {
+                      label: "Bearbeiten",
+                      color: colors.cardPressed,
+                      onPress: (close) => {
+                        close();
+                        router.push({ pathname: "/editworkout", params: { id: plan.id } });
+                      },
+                    },
+                    {
+                      label: "Löschen",
+                      color: colors.danger,
+                      onPress: (close) => confirmDeletePlan(plan, close),
+                    },
+                  ]}
+                >
+                  <PlanCard plan={plan} onPress={() => comingSoon("Das Workout-Detail")} />
+                </SwipeableRow>
               ))
             )}
 
