@@ -7,6 +7,7 @@ import DailyGoals from "@/models/dailygoal";
 import Day from "@/models/day";
 import Account from "@/models/account";
 import Habit, { ALL_WEEKDAYS, HabitInput } from "@/models/habit";
+import Settings, { DEFAULT_SETTINGS } from "@/models/settings";
 import Meal, { MealInput } from "@/models/meal";
 import UserBasics from "@/models/userbasic";
 import {
@@ -24,7 +25,7 @@ import {
   normalizeEmail,
 } from "@/utils/auth";
 import { toDateKey, weekdayIndex } from "@/utils/date";
-import { syncHabitReminders } from "@/utils/notifications";
+import { syncHabitReminders, syncWaterReminders } from "@/utils/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import {
@@ -47,6 +48,10 @@ interface AppContextType {
   login: (email: string, password: string) => Promise<AuthResult>;
   logout: () => void; // data stays on the phone, log in again to get it back
   resetPassword: (email: string, firstName: string, newPassword: string) => Promise<AuthResult>;
+
+  // Settings (profile → EINSTELLUNGEN)
+  settings: Settings;
+  updateSettings: (fields: Partial<Settings>) => void; // e.g. { waterReminder: true }
   userBasics: UserBasics | undefined;
   dailyGoals: DailyGoals | undefined;
   updateUser: (fields: Partial<UserBasics>) => void; // change one or more fields
@@ -104,6 +109,7 @@ const HISTORY_KEY = "workoutHistory";
 const ACTIVE_WORKOUT_KEY = "activeWorkout";
 const ACCOUNT_KEY = "account";
 const LOGGED_IN_KEY = "loggedIn";
+const SETTINGS_KEY = "settings";
 
 // What register / login / resetPassword return: ok, or a German error for the screen
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -132,6 +138,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | undefined>();
   const [account, setAccount] = useState<Account | undefined>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+  // May see the app: onboarding done AND logged in.
+  // No account yet (data from before accounts existed / "Ohne Konto weiter") → still allowed in.
+  const hasAccess = !!userBasics && !!dailyGoals && (account ? isLoggedIn : true);
+
+  // Water reminders: on, every X hours, but none once today's goal is reached
+  // (three plain values instead of one object → the effects below only re-run when one changes)
+  const waterToday = dayList.find((day) => day.date === toDateKey())?.water ?? 0;
+  const waterEnabled = hasAccess && settings.waterReminder;
+  const waterInterval = settings.waterInterval;
+  const waterGoalReached = !!dailyGoals?.goalwater && waterToday >= dailyGoals.goalwater;
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -150,6 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedActive = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
       const savedAccount = await AsyncStorage.getItem(ACCOUNT_KEY);
       const savedLoggedIn = await AsyncStorage.getItem(LOGGED_IN_KEY);
+      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
@@ -182,6 +201,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (savedActive) setActiveWorkout(JSON.parse(savedActive) as WorkoutSession);
       if (savedAccount) setAccount(JSON.parse(savedAccount) as Account);
       setIsLoggedIn(savedLoggedIn === "true");
+      // Defaults first → settings added in a later version get their default value
+      if (savedSettings) {
+        setSettings({ ...DEFAULT_SETTINGS, ...(JSON.parse(savedSettings) as Partial<Settings>) });
+      }
 
       console.log("Data successfully loaded");
     } catch {
@@ -208,12 +231,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isLoaded) save(DAYS_KEY, dayList);
   }, [dayList, isLoaded]);
 
-  // Habits: save + plan the reminders again (also runs once after loading = on app start)
+  // Habits: save + plan the reminders again (also runs once after loading = on app start).
+  // Logged out → no reminders.
   useEffect(() => {
     if (!isLoaded) return;
     save(HABITS_KEY, habitList);
-    syncHabitReminders(habitList);
-  }, [habitList, isLoaded]);
+    syncHabitReminders(hasAccess ? habitList : []);
+  }, [habitList, hasAccess, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) save(SETTINGS_KEY, settings);
+  }, [settings, isLoaded]);
+
+  // Water: plan again when the setting changes or today's goal gets reached.
+  // (Only the yes/no "goal reached" counts – not every single glass.)
+  useEffect(() => {
+    if (!isLoaded) return;
+    syncWaterReminders({
+      enabled: waterEnabled,
+      intervalHours: waterInterval,
+      goalReachedToday: waterGoalReached,
+    });
+  }, [waterEnabled, waterInterval, waterGoalReached, isLoaded]);
 
   useEffect(() => {
     if (isLoaded) save(PLANS_KEY, workoutPlans);
@@ -244,10 +283,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncHabitReminders(habitList);
+      if (state !== "active") return;
+      syncHabitReminders(hasAccess ? habitList : []);
+      syncWaterReminders({
+        enabled: waterEnabled,
+        intervalHours: waterInterval,
+        goalReachedToday: waterGoalReached,
+      });
     });
     return () => subscription.remove();
-  }, [habitList, isLoaded]);
+  }, [habitList, hasAccess, waterEnabled, waterInterval, waterGoalReached, isLoaded]);
 
   async function save(key: string, data: object): Promise<void> {
     try {
@@ -392,6 +437,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       }),
     );
+  }
+
+  // ---------- SETTINGS ----------
+  // updateSettings({ waterInterval: 3 })  → only the interval changes
+  function updateSettings(fields: Partial<Settings>): void {
+    setSettings((prev) => ({ ...prev, ...fields }));
   }
 
   // ---------- ACCOUNT (only on this phone) ----------
@@ -651,9 +702,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ACTIVE_WORKOUT_KEY,
       ACCOUNT_KEY,
       LOGGED_IN_KEY,
+      SETTINGS_KEY,
     ]);
     setAccount(undefined);
     setIsLoggedIn(false);
+    setSettings(DEFAULT_SETTINGS); // → water reminders off
+
     setUserBasics(undefined);
     setDailyGoals(undefined);
     setMealList([]);
@@ -670,7 +724,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isLoaded,
         onboardingDone: !!userBasics && !!dailyGoals,
         // No account yet (data from before accounts existed) → still allowed in
-        hasAccess: !!userBasics && !!dailyGoals && (account ? isLoggedIn : true),
+        hasAccess,
+        settings,
+        updateSettings,
         accountEmail: account?.email, // never hand out the hash
         isLoggedIn,
         register,
