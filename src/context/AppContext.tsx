@@ -7,7 +7,13 @@ import Day from "@/models/day";
 import Habit, { ALL_WEEKDAYS, HabitInput } from "@/models/habit";
 import Meal, { MealInput } from "@/models/meal";
 import UserBasics from "@/models/userbasic";
-import { toDateKey } from "@/utils/date";
+import {
+  SetEntry,
+  WorkoutPlan,
+  WorkoutPlanInput,
+  WorkoutSession,
+} from "@/models/workout";
+import { toDateKey, weekdayIndex } from "@/utils/date";
 import { syncHabitReminders } from "@/utils/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
@@ -44,6 +50,27 @@ interface AppContextType {
   updateHabit: (id: string, fields: Partial<HabitInput>) => void;
   deleteHabit: (id: string) => void;
   toggleHabitDone: (id: string, date?: string) => void; // done ↔ not done (default: today)
+
+  // Workout plans (templates)
+  workoutPlans: WorkoutPlan[];
+  addPlan: (plan: WorkoutPlanInput) => void;
+  updatePlan: (id: string, fields: Partial<WorkoutPlanInput>) => void;
+  deletePlan: (id: string) => void;
+  getPlansForDay: (date?: string) => WorkoutPlan[]; // plans for that weekday (default: today)
+
+  // History (finished trainings)
+  workoutHistory: WorkoutSession[]; // newest first
+  deleteSession: (id: string) => void;
+
+  // The training that is running right now
+  activeWorkout: WorkoutSession | undefined;
+  startWorkout: (planId: string) => void; // weights are pre-filled from the last training
+  updateSet: (exerciseIndex: number, setIndex: number, fields: Partial<SetEntry>) => void;
+  addSet: (exerciseIndex: number) => void; // copies the values of the last set
+  startRest: (seconds: number) => void; // pause timer, keeps running in the background
+  skipRest: () => void;
+  finishWorkout: () => void; // → saved to the history
+  discardWorkout: () => void; // → thrown away, nothing saved
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -53,6 +80,9 @@ const GOALS_KEY = "dailyGoals";
 const MEALS_KEY = "meals";
 const DAYS_KEY = "days";
 const HABITS_KEY = "habits";
+const PLANS_KEY = "workoutPlans";
+const HISTORY_KEY = "workoutHistory";
+const ACTIVE_WORKOUT_KEY = "activeWorkout";
 
 // A fresh day with everything at 0
 function emptyDay(date: string): Day {
@@ -73,6 +103,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [mealList, setMealList] = useState<Meal[]>([]);
   const [dayList, setDayList] = useState<Day[]>([]);
   const [habitList, setHabitList] = useState<Habit[]>([]);
+  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
+  const [workoutHistory, setWorkoutHistory] = useState<WorkoutSession[]>([]);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | undefined>();
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -86,6 +119,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedMeals = await AsyncStorage.getItem(MEALS_KEY);
       const savedDays = await AsyncStorage.getItem(DAYS_KEY);
       const savedHabits = await AsyncStorage.getItem(HABITS_KEY);
+      const savedPlans = await AsyncStorage.getItem(PLANS_KEY);
+      const savedHistory = await AsyncStorage.getItem(HISTORY_KEY);
+      const savedActive = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
@@ -110,6 +146,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         setHabitList(habits);
       }
+      if (savedPlans) setWorkoutPlans(JSON.parse(savedPlans) as WorkoutPlan[]);
+      if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory) as WorkoutSession[]);
+      if (savedActive) setActiveWorkout(JSON.parse(savedActive) as WorkoutSession);
 
       console.log("Data successfully loaded");
     } catch {
@@ -142,6 +181,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     save(HABITS_KEY, habitList);
     syncHabitReminders(habitList);
   }, [habitList, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) save(PLANS_KEY, workoutPlans);
+  }, [workoutPlans, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) save(HISTORY_KEY, workoutHistory);
+  }, [workoutHistory, isLoaded]);
+
+  // Running training: saved while it runs (survives closing the app), removed when it ends
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (activeWorkout) save(ACTIVE_WORKOUT_KEY, activeWorkout);
+    else AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
+  }, [activeWorkout, isLoaded]);
 
   // App comes back to the foreground (e.g. the next morning) → top up the reminders
   useEffect(() => {
@@ -297,6 +351,136 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // ---------- WORKOUT PLANS ----------
+  // addPlan({ name: "Push Day", weekdays: [0, 3],
+  //           exercises: [{ exerciseId: "bench-press", sets: 3, reps: 10 }] })
+  function addPlan(input: WorkoutPlanInput): void {
+    setWorkoutPlans((currentList) => [...currentList, { ...input, id: makeId() }]);
+  }
+
+  function updatePlan(id: string, fields: Partial<WorkoutPlanInput>): void {
+    setWorkoutPlans((currentList) =>
+      currentList.map((plan) => (plan.id === id ? { ...plan, ...fields } : plan)),
+    );
+  }
+
+  // The history keeps its entries (they have their own copy of the name)
+  function deletePlan(id: string): void {
+    setWorkoutPlans((currentList) => currentList.filter((plan) => plan.id !== id));
+  }
+
+  // getPlansForDay() → today's workouts, e.g. for "heutiges Workout" on Home
+  function getPlansForDay(date: string = toDateKey()): WorkoutPlan[] {
+    const weekday = weekdayIndex(date);
+    return workoutPlans.filter((plan) => plan.weekdays.includes(weekday));
+  }
+
+  // ---------- HISTORY ----------
+  function deleteSession(id: string): void {
+    setWorkoutHistory((currentList) => currentList.filter((s) => s.id !== id));
+  }
+
+  // ---------- RUNNING TRAINING ----------
+  // Creates the sets from the plan. Reps = plan, kg = what you lifted last time (if any).
+  function startWorkout(planId: string): void {
+    const plan = workoutPlans.find((p) => p.id === planId);
+    if (!plan) return;
+
+    const exercises = plan.exercises.map(({ exerciseId, sets, reps }) => {
+      // Most recent training with this exercise (history is newest first)
+      const lastTime = workoutHistory
+        .flatMap((session) => session.exercises)
+        .find((exercise) => exercise.exerciseId === exerciseId);
+
+      return {
+        exerciseId,
+        sets: Array.from({ length: sets }, (_, i): SetEntry => ({
+          kg: lastTime?.sets[Math.min(i, lastTime.sets.length - 1)]?.kg ?? null,
+          reps,
+          done: false,
+        })),
+      };
+    });
+
+    setActiveWorkout({
+      id: makeId(),
+      planId: plan.id,
+      planName: plan.name,
+      date: toDateKey(),
+      startedAt: Date.now(),
+      exercises,
+    });
+  }
+
+  // updateSet(0, 1, { kg: 60 })  → 1st exercise, 2nd set: 60 kg
+  // updateSet(0, 1, { done: true }) → ticked
+  function updateSet(
+    exerciseIndex: number,
+    setIndex: number,
+    fields: Partial<SetEntry>,
+  ): void {
+    setActiveWorkout((session) =>
+      session && {
+        ...session,
+        exercises: session.exercises.map((exercise, e) =>
+          e !== exerciseIndex
+            ? exercise
+            : {
+                ...exercise,
+                sets: exercise.sets.map((set, s) =>
+                  s === setIndex ? { ...set, ...fields } : set,
+                ),
+              },
+        ),
+      },
+    );
+  }
+
+  // New set with the values of the last one (not ticked yet)
+  function addSet(exerciseIndex: number): void {
+    setActiveWorkout((session) =>
+      session && {
+        ...session,
+        exercises: session.exercises.map((exercise, e) => {
+          if (e !== exerciseIndex) return exercise;
+          const last = exercise.sets[exercise.sets.length - 1];
+          const newSet: SetEntry = {
+            kg: last?.kg ?? null,
+            reps: last?.reps ?? null,
+            done: false,
+          };
+          return { ...exercise, sets: [...exercise.sets, newSet] };
+        }),
+      },
+    );
+  }
+
+  // Pause timer: stores WHEN it ends, so it keeps counting even if you leave the screen
+  function startRest(seconds: number): void {
+    setActiveWorkout(
+      (session) => session && { ...session, restEndsAt: Date.now() + seconds * 1000 },
+    );
+  }
+
+  function skipRest(): void {
+    setActiveWorkout((session) => session && { ...session, restEndsAt: undefined });
+  }
+
+  function finishWorkout(): void {
+    if (!activeWorkout) return;
+    const finished: WorkoutSession = {
+      ...activeWorkout,
+      endedAt: Date.now(),
+      restEndsAt: undefined,
+    };
+    setWorkoutHistory((currentList) => [finished, ...currentList]); // newest first
+    setActiveWorkout(undefined);
+  }
+
+  function discardWorkout(): void {
+    setActiveWorkout(undefined);
+  }
+
   // ---------- CALCULATE daily goals from the basic info ----------
   // Returns the suggestion only – save it with updateGoals(...) when the user confirms.
   // Without basics it uses the saved userBasics.
@@ -346,12 +530,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       MEALS_KEY,
       DAYS_KEY,
       HABITS_KEY,
+      PLANS_KEY,
+      HISTORY_KEY,
+      ACTIVE_WORKOUT_KEY,
     ]);
     setUserBasics(undefined);
     setDailyGoals(undefined);
     setMealList([]);
     setDayList([]);
     setHabitList([]); // → the habit effect also cancels all reminders
+    setWorkoutPlans([]);
+    setWorkoutHistory([]);
+    setActiveWorkout(undefined);
   }
 
   return (
@@ -378,6 +568,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateHabit,
         deleteHabit,
         toggleHabitDone,
+        workoutPlans,
+        addPlan,
+        updatePlan,
+        deletePlan,
+        getPlansForDay,
+        workoutHistory,
+        deleteSession,
+        activeWorkout,
+        startWorkout,
+        updateSet,
+        addSet,
+        startRest,
+        skipRest,
+        finishWorkout,
+        discardWorkout,
       }}
     >
       {children}
