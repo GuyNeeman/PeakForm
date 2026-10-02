@@ -28,7 +28,8 @@ const styles = StyleSheet.create({
 // 2) INNER component: lives INSIDE the provider, so useApp() works here
 function RootStack() {
   const { colors, isDark } = useTheme();
-  const { isLoaded, onboardingDone } = useApp();
+  // hasAccess = onboarding done AND logged in (see AppContext)
+  const { isLoaded, hasAccess } = useApp();
 
   // Wait until the saved data is loaded – otherwise the onboarding flashes up for a moment
   if (!isLoaded) return null;
@@ -45,13 +46,13 @@ function RootStack() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        {/* Only reachable while onboarding is NOT done (01–03) */}
-        <Stack.Protected guard={!onboardingDone}>
+        {/* Not in the app yet: welcome, onboarding (01–03), later login/register */}
+        <Stack.Protected guard={!hasAccess}>
           <Stack.Screen name="(onboarding)" />
         </Stack.Protected>
 
-        {/* Only reachable once onboarding IS done (04–08) */}
-        <Stack.Protected guard={onboardingDone}>
+        {/* In the app: onboarding done and logged in (04–08) */}
+        <Stack.Protected guard={hasAccess}>
           <Stack.Screen name="(tabs)" />
 
           {/* 05 Add meal: slides up from the bottom */}

@@ -5,6 +5,7 @@
 import { EXAMPLE_PLANS } from "@/constants/exercises";
 import DailyGoals from "@/models/dailygoal";
 import Day from "@/models/day";
+import Account from "@/models/account";
 import Habit, { ALL_WEEKDAYS, HabitInput } from "@/models/habit";
 import Meal, { MealInput } from "@/models/meal";
 import UserBasics from "@/models/userbasic";
@@ -14,6 +15,14 @@ import {
   WorkoutPlanInput,
   WorkoutSession,
 } from "@/models/workout";
+import {
+  hashPassword,
+  isValidEmail,
+  isValidPassword,
+  makeSalt,
+  MIN_PASSWORD_LENGTH,
+  normalizeEmail,
+} from "@/utils/auth";
 import { toDateKey, weekdayIndex } from "@/utils/date";
 import { syncHabitReminders } from "@/utils/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,6 +38,15 @@ import {
 interface AppContextType {
   isLoaded: boolean; // false while loading from storage
   onboardingDone: boolean; // true when basics AND goals exist
+  hasAccess: boolean; // may see the app (tabs): onboarding done AND logged in (or no account yet)
+
+  // Account – only on this phone, one per device
+  accountEmail: string | undefined; // undefined = no account yet
+  isLoggedIn: boolean;
+  register: (email: string, password: string) => Promise<AuthResult>;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  logout: () => void; // data stays on the phone, log in again to get it back
+  resetPassword: (email: string, firstName: string, newPassword: string) => Promise<AuthResult>;
   userBasics: UserBasics | undefined;
   dailyGoals: DailyGoals | undefined;
   updateUser: (fields: Partial<UserBasics>) => void; // change one or more fields
@@ -84,6 +102,11 @@ const HABITS_KEY = "habits";
 const PLANS_KEY = "workoutPlans";
 const HISTORY_KEY = "workoutHistory";
 const ACTIVE_WORKOUT_KEY = "activeWorkout";
+const ACCOUNT_KEY = "account";
+const LOGGED_IN_KEY = "loggedIn";
+
+// What register / login / resetPassword return: ok, or a German error for the screen
+export type AuthResult = { ok: true } | { ok: false; error: string };
 
 // A fresh day with everything at 0
 function emptyDay(date: string): Day {
@@ -107,6 +130,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutSession[]>([]);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | undefined>();
+  const [account, setAccount] = useState<Account | undefined>();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // ---------- LOAD (once, when the app starts) ----------
   useEffect(() => {
@@ -123,6 +148,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedPlans = await AsyncStorage.getItem(PLANS_KEY);
       const savedHistory = await AsyncStorage.getItem(HISTORY_KEY);
       const savedActive = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
+      const savedAccount = await AsyncStorage.getItem(ACCOUNT_KEY);
+      const savedLoggedIn = await AsyncStorage.getItem(LOGGED_IN_KEY);
 
       if (savedUser) setUserBasics(JSON.parse(savedUser) as UserBasics);
       if (savedGoals) setDailyGoals(JSON.parse(savedGoals) as DailyGoals);
@@ -153,6 +180,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       if (savedHistory) setWorkoutHistory(JSON.parse(savedHistory) as WorkoutSession[]);
       if (savedActive) setActiveWorkout(JSON.parse(savedActive) as WorkoutSession);
+      if (savedAccount) setAccount(JSON.parse(savedAccount) as Account);
+      setIsLoggedIn(savedLoggedIn === "true");
 
       console.log("Data successfully loaded");
     } catch {
@@ -200,6 +229,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (activeWorkout) save(ACTIVE_WORKOUT_KEY, activeWorkout);
     else AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
   }, [activeWorkout, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (account) save(ACCOUNT_KEY, account);
+    else AsyncStorage.removeItem(ACCOUNT_KEY);
+  }, [account, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) AsyncStorage.setItem(LOGGED_IN_KEY, String(isLoggedIn));
+  }, [isLoggedIn, isLoaded]);
 
   // App comes back to the foreground (e.g. the next morning) → top up the reminders
   useEffect(() => {
@@ -353,6 +392,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       }),
     );
+  }
+
+  // ---------- ACCOUNT (only on this phone) ----------
+  // One account per phone. All errors are German texts the screens can show directly.
+
+  async function register(email: string, password: string): Promise<AuthResult> {
+    if (account) {
+      return { ok: false, error: "Auf diesem Handy gibt es schon ein Konto. Melde dich an." };
+    }
+    if (!isValidEmail(email)) {
+      return { ok: false, error: "Bitte gib eine gültige E-Mail-Adresse ein." };
+    }
+    if (!isValidPassword(password)) {
+      return {
+        ok: false,
+        error: `Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`,
+      };
+    }
+
+    const salt = makeSalt();
+    setAccount({
+      email: normalizeEmail(email),
+      passwordHash: await hashPassword(password, salt),
+      salt,
+      createdAt: Date.now(),
+    });
+    setIsLoggedIn(true);
+    return { ok: true };
+  }
+
+  async function login(email: string, password: string): Promise<AuthResult> {
+    if (!account) {
+      return { ok: false, error: "Auf diesem Handy gibt es noch kein Konto." };
+    }
+    const hash = await hashPassword(password, account.salt);
+    // Same message for wrong e-mail and wrong password – doesn't reveal which one was wrong
+    if (normalizeEmail(email) !== account.email || hash !== account.passwordHash) {
+      return { ok: false, error: "E-Mail oder Passwort ist falsch." };
+    }
+    setIsLoggedIn(true);
+    return { ok: true };
+  }
+
+  // Back to the welcome screen. All data stays on the phone.
+  function logout(): void {
+    setIsLoggedIn(false);
+  }
+
+  // "Passwort vergessen?" without a server: e-mail + first name from the basics prove it's you
+  async function resetPassword(
+    email: string,
+    firstName: string,
+    newPassword: string,
+  ): Promise<AuthResult> {
+    const savedName = userBasics?.name?.trim().toLowerCase();
+    if (
+      !account ||
+      normalizeEmail(email) !== account.email ||
+      !savedName ||
+      firstName.trim().toLowerCase() !== savedName
+    ) {
+      return { ok: false, error: "E-Mail oder Vorname stimmt nicht." };
+    }
+    if (!isValidPassword(newPassword)) {
+      return {
+        ok: false,
+        error: `Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`,
+      };
+    }
+
+    const salt = makeSalt(); // new password → new salt
+    setAccount({ ...account, salt, passwordHash: await hashPassword(newPassword, salt) });
+    return { ok: true };
   }
 
   // ---------- WORKOUT PLANS ----------
@@ -537,7 +649,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       PLANS_KEY,
       HISTORY_KEY,
       ACTIVE_WORKOUT_KEY,
+      ACCOUNT_KEY,
+      LOGGED_IN_KEY,
     ]);
+    setAccount(undefined);
+    setIsLoggedIn(false);
     setUserBasics(undefined);
     setDailyGoals(undefined);
     setMealList([]);
@@ -553,6 +669,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         isLoaded,
         onboardingDone: !!userBasics && !!dailyGoals,
+        // No account yet (data from before accounts existed) → still allowed in
+        hasAccess: !!userBasics && !!dailyGoals && (account ? isLoggedIn : true),
+        accountEmail: account?.email, // never hand out the hash
+        isLoggedIn,
+        register,
+        login,
+        logout,
+        resetPassword,
         userBasics,
         dailyGoals,
         updateUser,
