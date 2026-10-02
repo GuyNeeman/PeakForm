@@ -13,6 +13,7 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Basics() {
+  const [name, setName] = useState("");
   const [sex, setSex] = useState("");
   const [age, setAge] = useState("");
   const [height, setHeight] = useState("");
@@ -20,12 +21,14 @@ export default function Basics() {
   const [activity, setActivity] = useState("");
   const [goal, setGoal] = useState("");
 
-  const isComplete = sex && age && height && weight && activity && goal;
+  const isComplete =
+    name.trim() && sex && age && height && weight && activity && goal;
 
-  const { updateUser, updateGoals } = useApp();
+  const { updateUser } = useApp();
   const router = useRouter();
 
   const basics: UserBasics = {
+    name: name.trim(),
     sex: sex as UserBasics["sex"],
     age: Number(age),
     height: Number(height),
@@ -48,6 +51,17 @@ export default function Basics() {
         automaticallyAdjustKeyboardInsets
       >
         <AppText variant="title">Erzähl uns von dir</AppText>
+
+        <View style={styles.row}>
+          <TextField
+            label="Wie heisst du?"
+            value={name}
+            onChange={setName}
+            keyboardType="default"
+            placeholder="Vorname"
+            maxLength={30}
+          />
+        </View>
 
         <SegmentedControl
           label="Geschlecht"

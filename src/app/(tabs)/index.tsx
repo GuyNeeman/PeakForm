@@ -11,8 +11,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "../../components/AppText";
 
 export default function HomeScreen() {
-  const { getDay, updateDay, dailyGoals, resetAll, getPlansForDay, activeWorkout } =
-    useApp();
+  const {
+    userBasics,
+    getDay,
+    updateDay,
+    dailyGoals,
+    resetAll,
+    getPlansForDay,
+    activeWorkout,
+  } = useApp();
   const today = getDay();
 
   // Workout card: running training > today's plan (by weekday) > rest day
@@ -34,7 +41,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <AppText variant="title">
-          Hey Sebastian, bereit fürs nächste Level?
+          Hey {userBasics?.name || "du"}, bereit fürs nächste Level?
         </AppText>
 
         <Card
