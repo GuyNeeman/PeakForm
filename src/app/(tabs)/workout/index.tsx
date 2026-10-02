@@ -2,7 +2,7 @@
 // Training plans and history.
 //
 // ① Pläne / Verlauf → switches the list
-// ② Plan card       → workout detail (07)               ← step 5
+// ② Plan card       → workout detail (07)
 //                     swipe left → "Bearbeiten" (modal 15) / "Löschen" (asks first)
 // ③ History entry   → swipe left → "Löschen" (asks first)
 // ④ "+"             → new workout (modal 15)
@@ -25,12 +25,9 @@ const PLANS = "Pläne";
 const HISTORY = "Verlauf";
 const RECENT_COUNT = 3; // "Zuletzt" under the plans
 
-// TEMPORARY until the workout detail exists (step 5)
-const comingSoon = (what: string) =>
-  Alert.alert("Kommt bald", `${what} wird in einem der nächsten Schritte gebaut.`);
-
 export default function WorkoutsScreen() {
-  const { workoutPlans, workoutHistory, deleteSession, deletePlan } = useApp();
+  const { workoutPlans, workoutHistory, deleteSession, deletePlan, activeWorkout } =
+    useApp();
   const [tab, setTab] = useState(PLANS);
 
   function confirmDeletePlan(plan: WorkoutPlan, close: () => void) {
@@ -74,6 +71,28 @@ export default function WorkoutsScreen() {
           </Pressable>
         </View>
 
+        {/* Running training → back into it */}
+        {activeWorkout && (
+          <Pressable
+            onPress={() => router.push(`/workout/${activeWorkout.planId}`)}
+            style={({ pressed }) => [styles.activeBanner, pressed && styles.pressed]}
+          >
+            <Ionicons name="barbell-outline" size={22} color={colors.onPrimary} />
+            <View style={styles.cardText}>
+              <AppText variant="label" color={colors.onPrimary}>
+                Training läuft · {activeWorkout.planName}
+              </AppText>
+              <AppText variant="caption" color={colors.onPrimary}>
+                {countSets(activeWorkout).done} von {countSets(activeWorkout).total} Sätzen
+                erledigt
+              </AppText>
+            </View>
+            <AppText variant="label" color={colors.onPrimary}>
+              Fortsetzen
+            </AppText>
+          </Pressable>
+        )}
+
         {/* ① Pläne / Verlauf */}
         <SegmentedControl options={[PLANS, HISTORY]} value={tab} onChange={setTab} />
 
@@ -104,7 +123,10 @@ export default function WorkoutsScreen() {
                     },
                   ]}
                 >
-                  <PlanCard plan={plan} onPress={() => comingSoon("Das Workout-Detail")} />
+                  <PlanCard
+                    plan={plan}
+                    onPress={() => router.push(`/workout/${plan.id}`)}
+                  />
                 </SwipeableRow>
               ))
             )}
@@ -218,6 +240,14 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  activeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
   },
   hint: {
     textAlign: "center",

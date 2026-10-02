@@ -3,7 +3,7 @@
 //
 // ① Name             → required, max. 30 characters
 // ② Wochentage       → optional; these days show the plan on Home as "heutiges Workout"
-// ③ Übungszeile      → − / + changes the number of sets, swipe left → "Entfernen"
+// ③ Übungszeile      → − / + for sets and reps, swipe left → "Entfernen"
 // ④ Übung hinzufügen → "Übung auswählen" (16) inside this modal
 // ⑤ Speichern        → disabled until there's a name and at least one exercise
 // ⑥ Abbrechen        → closes without saving (asks first if something was changed)
@@ -21,8 +21,12 @@ import { useRouter } from "expo-router";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const MIN_SETS = 1;
-const MAX_SETS = 10;
+// Allowed range for the − / + buttons
+const LIMITS = {
+  sets: { min: 1, max: 10 },
+  reps: { min: 1, max: 50 },
+};
+type Field = keyof typeof LIMITS; // "sets" | "reps"
 
 export default function EditWorkout() {
   const { addPlan, updatePlan } = useApp();
@@ -40,16 +44,14 @@ export default function EditWorkout() {
     }));
   }
 
-  // ③ − / + : number of sets, between 1 and 10
-  function changeSets(index: number, step: number) {
+  // ③ − / + : changeValue(0, "reps", 1) → 1st exercise, one rep more (stays within LIMITS)
+  function changeValue(index: number, field: Field, step: number) {
+    const { min, max } = LIMITS[field];
     setDraft((d) => ({
       ...d,
       exercises: d.exercises.map((exercise, i) =>
         i === index
-          ? {
-              ...exercise,
-              sets: Math.min(MAX_SETS, Math.max(MIN_SETS, exercise.sets + step)),
-            }
+          ? { ...exercise, [field]: Math.min(max, Math.max(min, exercise[field] + step)) }
           : exercise,
       ),
     }));
@@ -153,34 +155,28 @@ export default function EditWorkout() {
               ]}
             >
               <View style={styles.exerciseRow}>
-                <AppText variant="label" style={styles.exerciseName} numberOfLines={1}>
-                  {getExercise(planExercise.exerciseId)?.name ?? "Unbekannte Übung"}
-                </AppText>
-                <Pressable
-                  onPress={() => changeSets(index, -1)}
-                  disabled={planExercise.sets <= MIN_SETS}
-                  accessibilityLabel="Ein Satz weniger"
-                  style={[
-                    styles.stepButton,
-                    planExercise.sets <= MIN_SETS && styles.stepDisabled,
-                  ]}
-                >
-                  <Ionicons name="remove" size={18} color={colors.text} />
-                </Pressable>
-                <AppText variant="label" style={styles.setsText}>
-                  {planExercise.sets} × {planExercise.reps}
-                </AppText>
-                <Pressable
-                  onPress={() => changeSets(index, 1)}
-                  disabled={planExercise.sets >= MAX_SETS}
-                  accessibilityLabel="Ein Satz mehr"
-                  style={[
-                    styles.stepButton,
-                    planExercise.sets >= MAX_SETS && styles.stepDisabled,
-                  ]}
-                >
-                  <Ionicons name="add" size={18} color={colors.text} />
-                </Pressable>
+                <View style={styles.exerciseHeader}>
+                  <AppText variant="label" style={styles.exerciseName} numberOfLines={1}>
+                    {getExercise(planExercise.exerciseId)?.name ?? "Unbekannte Übung"}
+                  </AppText>
+                  <AppText variant="label" muted>
+                    {planExercise.sets} × {planExercise.reps}
+                  </AppText>
+                </View>
+                <View style={styles.steppers}>
+                  <Stepper
+                    label="Sätze"
+                    value={planExercise.sets}
+                    limits={LIMITS.sets}
+                    onChange={(step) => changeValue(index, "sets", step)}
+                  />
+                  <Stepper
+                    label="Wdh."
+                    value={planExercise.reps}
+                    limits={LIMITS.reps}
+                    onChange={(step) => changeValue(index, "reps", step)}
+                  />
+                </View>
               </View>
             </SwipeableRow>
           ))}
@@ -206,6 +202,51 @@ export default function EditWorkout() {
         </AppText>
       </Pressable>
     </SafeAreaView>
+  );
+}
+
+// "Sätze  −  3  +" – the buttons grey out at the limits
+function Stepper({
+  label,
+  value,
+  limits,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  limits: { min: number; max: number };
+  onChange: (step: number) => void;
+}) {
+  const atMin = value <= limits.min;
+  const atMax = value >= limits.max;
+
+  return (
+    <View style={styles.stepper}>
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
+      <Pressable
+        onPress={() => onChange(-1)}
+        disabled={atMin}
+        accessibilityLabel={`${label} weniger`}
+        hitSlop={4}
+        style={[styles.stepButton, atMin && styles.stepDisabled]}
+      >
+        <Ionicons name="remove" size={18} color={colors.text} />
+      </Pressable>
+      <AppText variant="label" style={styles.stepValue}>
+        {value}
+      </AppText>
+      <Pressable
+        onPress={() => onChange(1)}
+        disabled={atMax}
+        accessibilityLabel={`${label} mehr`}
+        hitSlop={4}
+        style={[styles.stepButton, atMax && styles.stepDisabled]}
+      >
+        <Ionicons name="add" size={18} color={colors.text} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -266,16 +307,32 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   exerciseRow: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing.sm,
     padding: spacing.md,
     paddingLeft: spacing.lg,
     borderRadius: radius.lg,
     backgroundColor: colors.card,
   },
+  exerciseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   exerciseName: {
     flex: 1,
+  },
+  steppers: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  stepValue: {
+    minWidth: 24,
+    textAlign: "center",
   },
   stepButton: {
     width: 36,
@@ -287,10 +344,6 @@ const styles = StyleSheet.create({
   },
   stepDisabled: {
     opacity: 0.3,
-  },
-  setsText: {
-    minWidth: 52,
-    textAlign: "center",
   },
   addExercise: {
     minHeight: touch.buttonHeight,
