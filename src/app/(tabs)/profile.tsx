@@ -10,6 +10,7 @@
 // ⑦ Abmelden              → asks first, then back to 01 Welcome (data stays on the phone)
 
 import { AppText } from "@/components/AppText";
+import { Avatar } from "@/components/Avatar";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { WATER_INTERVALS } from "@/models/settings";
@@ -72,11 +73,7 @@ export default function ProfileScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <AppText variant="title" color={colors.onPrimary}>
-              {name.charAt(0).toUpperCase()}
-            </AppText>
-          </View>
+          <Avatar name={userBasics?.name} size={72} />
           <View style={styles.headerText}>
             <AppText variant="heading">{name}</AppText>
             {goalLine ? (
@@ -207,14 +204,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.lg,
     marginVertical: spacing.sm,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
   },
   headerText: {
     flex: 1,

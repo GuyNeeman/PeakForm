@@ -1,10 +1,18 @@
 // src/app/(tabs)/index.tsx – 04 Home
+//
+// ① Avatar                 → switches to the Profile tab (08)
+// ⑤ Tägliche Gewohnheiten  → circle: tick off (animation + vibration), tap again → undo;
+//                            card title → Habits tab
 
+import { Avatar } from "@/components/Avatar";
 import { Card } from "@/components/Card";
+import { HabitCircle } from "@/components/HabitCircle";
 import { ProgressRing } from "@/components/ProgressRing";
 import { WaterBottle } from "@/components/WaterBottle";
 import { colors, radius, spacing, touch } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import { toDateKey } from "@/utils/date";
+import { isDoneOn, isDueOn } from "@/utils/habits";
 import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,8 +27,15 @@ export default function HomeScreen() {
     resetAll,
     getPlansForDay,
     activeWorkout,
+    habitList,
+    toggleHabitDone,
   } = useApp();
   const today = getDay();
+
+  // ⑤ Only the habits that are due today (e.g. "Bestimmte Tage" = not every day)
+  const todayKey = toDateKey();
+  const todaysHabits = habitList.filter((habit) => isDueOn(habit, todayKey));
+  const habitsDone = todaysHabits.filter((habit) => isDoneOn(habit, todayKey)).length;
 
   // Workout card: running training > today's plan (by weekday) > rest day
   const todaysPlan = getPlansForDay()[0];
@@ -40,9 +55,21 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppText variant="title">
-          Hey {userBasics?.name || "du"}, bereit fürs nächste Level?
-        </AppText>
+        {/* Greeting + ① avatar */}
+        <View style={styles.header}>
+          <AppText variant="title" style={styles.greeting}>
+            Hey {userBasics?.name || "du"}, bereit fürs nächste Level?
+          </AppText>
+          <Pressable
+            onPress={() => router.navigate("/profile")}
+            accessibilityRole="button"
+            accessibilityLabel="Profil öffnen"
+            hitSlop={8}
+            style={({ pressed }) => pressed && styles.pressed}
+          >
+            <Avatar name={userBasics?.name} size={48} />
+          </Pressable>
+        </View>
 
         <Card
           title="Kalorien"
@@ -111,6 +138,37 @@ export default function HomeScreen() {
           </AppText>
         </Card>
 
+        {/* ⑤ Tägliche Gewohnheiten */}
+        <Card title="Tägliche Gewohnheiten" onPress={() => router.navigate("/habits")}>
+          {todaysHabits.length === 0 ? (
+            <AppText variant="caption" muted>
+              {habitList.length === 0
+                ? "Noch keine Gewohnheiten – tippe hier, um eine hinzuzufügen."
+                : "Heute ist nichts geplant."}
+            </AppText>
+          ) : (
+            <>
+              <AppText variant="caption" muted>
+                {habitsDone} von {todaysHabits.length} erledigt
+              </AppText>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.habits}
+              >
+                {todaysHabits.map((habit) => (
+                  <HabitCircle
+                    key={habit.id}
+                    habit={habit}
+                    done={isDoneOn(habit, todayKey)}
+                    onToggle={() => toggleHabitDone(habit.id)}
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
+        </Card>
+
         <Pressable
           onPress={() => router.push("/addmeal")}
           style={styles.smallButton}
@@ -141,6 +199,21 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.xl,
     gap: spacing.md,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  greeting: {
+    flex: 1,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  habits: {
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
   },
   row: {
     flexDirection: "row",
