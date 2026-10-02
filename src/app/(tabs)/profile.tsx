@@ -1,21 +1,174 @@
-// src/app/(tabs)/profile.tsx – Profile (placeholder)
+// src/app/(tabs)/profile.tsx – 08 Profil & Settings
+//
+// Header         → avatar (first letter), name, "Ziel: Aufbauen · 2'200 kcal", e-mail
+// ① Grundwerte bearbeiten → same form as 02, saving re-calculates the kcal goal
+// ⑥ PeakForm Premium      → not built yet ("Bald verfügbar")
+//    Konto erstellen      → only if the user chose "Ohne Konto weiter"
+// EINSTELLUNGEN           → Wasser-Erinnerung   ← step 5b
+// ⑦ Abmelden              → asks first, then back to 01 Welcome (data stays on the phone)
 
 import { AppText } from "@/components/AppText";
-import { spacing } from "@/constants/theme";
-import { StyleSheet } from "react-native";
+import { colors, radius, spacing, touch } from "@/constants/theme";
+import { useApp } from "@/context/AppContext";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// 2200 → "2'200"
+const format = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+
 export default function ProfileScreen() {
+  const { userBasics, dailyGoals, accountEmail, logout } = useApp();
+
+  const name = userBasics?.name || "Du";
+  const goalLine = [
+    userBasics?.goal ? `Ziel: ${userBasics.goal}` : null,
+    dailyGoals ? `${format(dailyGoals.goal)} kcal` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  function confirmLogout() {
+    Alert.alert(
+      "Abmelden?",
+      "Deine Daten bleiben auf diesem Handy. Melde dich wieder an, um weiterzumachen.",
+      [
+        { text: "Abbrechen", style: "cancel" },
+        { text: "Abmelden", style: "destructive", onPress: logout }, // → 01 Welcome
+      ],
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <AppText variant="title">Profil</AppText>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <AppText variant="title">Profil</AppText>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <AppText variant="title" color={colors.onPrimary}>
+              {name.charAt(0).toUpperCase()}
+            </AppText>
+          </View>
+          <View style={styles.headerText}>
+            <AppText variant="heading">{name}</AppText>
+            {goalLine ? (
+              <AppText variant="caption" muted>
+                {goalLine}
+              </AppText>
+            ) : null}
+            <AppText variant="caption" muted>
+              {accountEmail ?? "Kein Konto – Daten nur auf diesem Handy"}
+            </AppText>
+          </View>
+        </View>
+
+        {/* KONTO */}
+        <AppText variant="caption" muted style={styles.sectionTitle}>
+          KONTO
+        </AppText>
+        <View style={styles.group}>
+          <Row label="Grundwerte bearbeiten" onPress={() => router.push("/editbasics")} />
+          <Row
+            label="PeakForm Premium"
+            onPress={() =>
+              Alert.alert("Bald verfügbar", "PeakForm Premium kommt in einer späteren Version.")
+            }
+          />
+          {!accountEmail && (
+            <Row label="Konto erstellen" onPress={() => router.push("/createaccount")} />
+          )}
+        </View>
+
+        {/* ⑦ Abmelden – only with an account (without one there's nothing to log back into) */}
+        {accountEmail && (
+          <Pressable
+            onPress={confirmLogout}
+            style={({ pressed }) => [styles.group, styles.logout, pressed && styles.pressed]}
+          >
+            <AppText variant="label" color={colors.danger}>
+              Abmelden
+            </AppText>
+          </Pressable>
+        )}
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// One line in a group: "Grundwerte bearbeiten  >"
+function Row({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <AppText variant="label" style={styles.rowLabel}>
+        {label}
+      </AppText>
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
     padding: spacing.xl,
+    gap: spacing.md,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.lg,
+    marginVertical: spacing.sm,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  sectionTitle: {
+    marginTop: spacing.md,
+    letterSpacing: 1,
+  },
+  group: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    overflow: "hidden",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: touch.buttonHeight,
+    paddingHorizontal: spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  rowPressed: {
+    backgroundColor: colors.cardPressed,
+  },
+  rowLabel: {
+    flex: 1,
+  },
+  logout: {
+    marginTop: spacing.lg,
+    minHeight: touch.buttonHeight,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "center",
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

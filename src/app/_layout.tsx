@@ -63,6 +63,10 @@ function RootStack() {
 
           {/* 15 New / edit workout (+ 16 "Übung auswählen" inside it): slides up */}
           <Stack.Screen name="editworkout" options={{ presentation: "modal" }} />
+
+          {/* From the profile (08): pushed from the right */}
+          <Stack.Screen name="editbasics" />
+          <Stack.Screen name="createaccount" />
         </Stack.Protected>
       </Stack>
     </SafeAreaProvider>
